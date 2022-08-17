@@ -147,7 +147,7 @@ class Character(BaseModel, BaseCharacter):
     dna_data = JsonField(blank=True, null=True, editable=False)
 
     _ignore_log = (
-        "extra_data",
+        "raw_data",
         "dna_data",
     )
 
@@ -467,7 +467,7 @@ class Dynasty(BaseModel):
     coa_data = JsonField(blank=True, null=True, editable=False)
 
     _ignore_log = (
-        "extra_data",
+        "raw_data",
         "coa_data",
     )
 
@@ -501,7 +501,7 @@ class House(BaseModel):
     coa_data = JsonField(blank=True, null=True, editable=False)
 
     _ignore_log = (
-        "extra_data",
+        "raw_data",
         "coa_data",
     )
 
