@@ -3,7 +3,7 @@ Pillow==9.2.0
 celery[redis]==5.2.7
 chardet==5.0.0
 coreapi==2.3.3
-common-framework==2022.8.10
+common-framework==2022.8.15
 dj-database-url==1.0.0
 django-configurations==2.3.2
 django-cors-headers==3.13.0
@@ -25,5 +25,5 @@ pytest-env==0.6.2
 python-dateutil==2.8.2
 redis==4.3.4
 requests==2.28.1
-setuptools==65.0.0
+setuptools==65.0.1
 wheel==0.37.1
