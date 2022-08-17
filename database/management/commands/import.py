@@ -69,9 +69,9 @@ class Command(BaseCommand):
         parser.add_argument("--save", action="store_true", help="Save parsed files")
         parser.add_argument("--unused", action="store_true", help="Include unused files")
         parser.add_argument("--reset", action="store_true", help="Reset locales and parsed files")
-        parser.add_argument("--noclean", action="store_true", help="No cleaning of orphan items")
+        parser.add_argument("--purge", action="store_true", help="Purge non created/updated records")
 
-    def handle(self, base_path, mod_path, save=False, unused=False, reset=False, noclean=False, *args, **options):
+    def handle(self, base_path, mod_path, save=False, unused=False, reset=False, purge=False, *args, **options):
         global_start = datetime.datetime.now()
 
         if not reset and os.path.exists("_all_locales.json"):
@@ -1264,7 +1264,7 @@ class Command(BaseCommand):
         mark_as_done(TitleHistory, count, start_date)
 
         # Mass cleaning
-        if not noclean:
+        if purge:
             for model, keys in all_objects.items():
                 deleted, total_deleted = model.objects.exclude(id__in=keys).delete()
                 if total_deleted:
