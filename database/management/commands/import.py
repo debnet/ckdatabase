@@ -1,4 +1,5 @@
 # coding: utf-8
+import collections
 import colorsys
 import datetime
 import json
@@ -1264,11 +1265,13 @@ class Command(BaseCommand):
         mark_as_done(TitleHistory, count, start_date)
 
         # Mass cleaning
+        all_deleted = collections.Counter()
         if purge:
             for model, keys in all_objects.items():
                 deleted, total_deleted = model.objects.exclude(id__in=keys).delete()
-                if total_deleted:
-                    logger.info(f"{total_deleted} {model._meta.verbose_name_plural} deleted!")
+                all_deleted.update(total_deleted or {})
+            for key, value in all_deleted.items():
+                logger.info(f"{value} {key} deleted!")
 
         with open("_all_missings.json", "w") as file:
             json.dump(all_missings, file, indent=4, sort_keys=True)
