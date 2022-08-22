@@ -338,7 +338,7 @@ def parse_all_locales(path, encoding="utf_8_sig", language="english"):
     return locales
 
 
-def walk_struct(obj, from_key=None):
+def walk(obj, from_key=None):
     """
     Walk through a complex dictionary struct
     :param obj: Dictionary
@@ -347,10 +347,10 @@ def walk_struct(obj, from_key=None):
     """
     if isinstance(obj, dict):
         for key, value in obj.items():
-            yield from walk_struct(value, key)
+            yield from walk(value, key)
     elif isinstance(obj, list):
         for item in obj:
-            yield from walk_struct(item, from_key)
+            yield from walk(item, from_key)
     else:
         yield from_key, obj
 
@@ -375,10 +375,10 @@ list_keys_rules = [
 ]
 
 
-def dump_struct(obj, from_key=None, prev_key=None, depth=-1):
+def revert(obj, from_key=None, prev_key=None, depth=-1):
     """
     /!\\ Work in progress /!\\
-    Try to dump a struct in Paradox format
+    Try to revert a dict-struct to Paradox format
     :param obj: Dictionary
     :param from_key: (only used by recursion) Key of the parent section
     :param prev_key: (only used by recursion) Key of the great-parent section
@@ -389,15 +389,18 @@ def dump_struct(obj, from_key=None, prev_key=None, depth=-1):
     sep = " " * 4
     tab = sep * depth
     if isinstance(obj, dict):
-        if from_key:
-            from_key = from_key.replace("|", " ")
-            lines.append(f"{tab}{from_key} = {{")
-        elif depth > 0:
-            lines.append(f"{tab}{{")
-        for key, value in obj.items():
-            lines.extend(dump_struct(value, from_key=key, prev_key=from_key, depth=depth + 1))
-        if from_key or depth > 0:
-            lines.append(f"{tab}}}")
+        if special := revert_special(obj, from_key):
+            lines.append(f"{tab}{special}")
+        else:
+            if from_key:
+                from_key = from_key.replace("|", " ")
+                lines.append(f"{tab}{from_key} = {{")
+            elif depth > 0:
+                lines.append(f"{tab}{{")
+            for key, value in obj.items():
+                lines.extend(revert(value, from_key=key, prev_key=from_key, depth=depth + 1))
+            if from_key or depth > 0:
+                lines.append(f"{tab}}}")
     elif isinstance(obj, list):
         is_list = None
         # Only for colors
@@ -407,7 +410,7 @@ def dump_struct(obj, from_key=None, prev_key=None, depth=-1):
             is_list = True
         if from_key and not is_list and not any(regex.match(from_key) for regex in list_keys_rules):
             for value in obj:
-                lines.extend(dump_struct(value, from_key=from_key, prev_key=prev_key, depth=depth))
+                lines.extend(revert(value, from_key=from_key, prev_key=prev_key, depth=depth))
         else:
             if from_key:
                 key = from_key.replace("|", " ")
@@ -415,31 +418,54 @@ def dump_struct(obj, from_key=None, prev_key=None, depth=-1):
             else:
                 lines.append(f"{tab}{{")
             for value in obj:
-                lines.extend(dump_struct(value, depth=depth + 1))
+                lines.extend(revert(value, depth=depth + 1))
             lines.append(f"{tab}}}")
     elif isinstance(obj, (int, float)) or obj:
         if from_key:
             from_key = from_key.replace("|", " ")
-            lines.append(f"{tab}{from_key} = {dump_value(obj, from_key, prev_key)}")
+            lines.append(f"{tab}{from_key} = {revert_value(obj, from_key, prev_key)}")
         else:
-            lines.append(f"{tab}{dump_value(obj)}")
+            lines.append(f"{tab}{revert_value(obj)}")
     if depth < 0:
         return "\n".join(lines)
     return lines
 
 
-def dump_value(value, from_key=None, prev_key=None):
+def revert_value(value, from_key=None, prev_key=None):
     """
     /!\\ Work in progress /!\\
-    Dump value utility for dump_struct
+    Revert values utility for revert function
+    :param value: Value to revert
+    :param from_key: Key of the parent section
+    :param prev_key: Key of the great-parent section
+    :return: Reverted value
     """
     if isinstance(value, bool):
         return "yes" if value else "no"
     elif isinstance(value, str):
-        if " " in value or from_key == "name":
+        if " " in value or (value.startswith("$") and value.endswith("$")) or from_key == "name":
             value = value.replace('"', '\\"')
             return f'"{value}"'
     return value
+
+
+def revert_special(obj, from_key=None):
+    """
+    /!\\ Work in progress /!\\
+    Revert special values utility for revert function
+    :param obj: Special object to revert
+    :param from_key: Key of the parent section
+    :return: Reverted object
+    """
+    if "@operator" in obj:
+        operator, value = obj["@operator"], obj["@value"]
+        return f"{from_key} {operator} {revert_value(value, from_key)}"
+    elif "@formula" in obj:
+        formula, value = obj["@formula"], obj["@value"]
+        return f"{from_key} = {formula}"
+    elif "@variable" in obj:
+        variable, value = obj["@variable"], obj["@value"]
+        return f"{from_key or variable} = {revert_value(value, from_key)}"
 
 
 def load_variables():
@@ -449,7 +475,7 @@ def load_variables():
     global variables
     if not os.path.exists("variables.json"):
         return
-    with open("variables.json") as file:
+    with open("_variables.json") as file:
         variables = json.load(file)
 
 
@@ -459,7 +485,7 @@ def save_variables():
     """
     if not variables:
         return
-    with open("variables.json", "w") as file:
+    with open("_variables.json", "w") as file:
         json.dump(variables, file, indent=4, sort_keys=True)
 
 

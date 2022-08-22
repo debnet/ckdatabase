@@ -39,7 +39,7 @@ from database.models import (
     Trait,
     User,
 )
-from database.parser import dump_struct
+from database.parser import revert
 
 admin.site.site_header = "Crusader Kings Database"
 
@@ -1831,7 +1831,7 @@ def generate_character_data(modeladmin, request, queryset):
     all_data = {}
     for character in queryset:
         all_data.update(character.revert_data())
-    text = dump_struct(all_data)
+    text = revert(all_data)
     return HttpResponse(text.encode("utf_8_sig"), content_type="text/plain")
 
 
