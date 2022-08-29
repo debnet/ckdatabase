@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 
-from database.parser import parse_text
+from database.ckparser import parse_text
 
 
 def to_pdx_date(date):
@@ -16,7 +16,7 @@ def to_pdx_date(date):
 class User(AbstractUser, Entity):
     can_use_api = models.BooleanField(default=False)
 
-    _ignore_log = ("last_login",)
+    _ignore_log = ("date_joined", "last_login", "password")
 
 
 class BaseModel(Entity):
@@ -32,7 +32,7 @@ class BaseModel(Entity):
         abstract = True
 
     def __str__(self):
-        return self.name or self.id
+        return str(self.name or self.id)
 
 
 class BaseCharacter(CommonModel):

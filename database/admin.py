@@ -39,7 +39,7 @@ from database.models import (
     Trait,
     User,
 )
-from database.parser import revert
+from database.ckparser import revert
 
 admin.site.site_header = "Crusader Kings Database"
 
@@ -188,6 +188,7 @@ class EthnicityAdmin(BaseAdmin):
 class CultureEthnicityInlineAdmin(EntityTabularInline):
     model = CultureEthnicity
     extra = 0
+    show_change_link = True
     ordering = (
         "culture",
         "ethnicity",
@@ -641,6 +642,7 @@ class TerrainAdmin(BaseAdmin):
 class TerrainModifierInlineAdmin(EntityTabularInline):
     model = TerrainModifier
     extra = 0
+    show_change_link = True
     ordering = (
         "men_at_arms",
         "terrain",
@@ -654,6 +656,7 @@ class TerrainModifierInlineAdmin(EntityTabularInline):
 class CounterInlineAdmin(EntityTabularInline):
     model = Counter
     extra = 0
+    show_change_link = True
     ordering = (
         "men_at_arms",
         "type",
@@ -806,6 +809,7 @@ class CounterAdmin(EntityAdmin):
 class DoctrineTraitInlineAdmin(EntityTabularInline):
     model = DoctrineTrait
     extra = 0
+    show_change_link = True
     ordering = (
         "doctrine",
         "trait",
@@ -913,6 +917,7 @@ class DoctrineTraitAdmin(EntityAdmin):
 class ReligionTraitInlineAdmin(EntityTabularInline):
     model = ReligionTrait
     extra = 0
+    show_change_link = True
     ordering = (
         "religion",
         "trait",
@@ -1137,6 +1142,7 @@ class TitleHistoryInlineAdmin(EntityStackedInline):
     model = TitleHistory
     fk_name = "title"
     extra = 0
+    show_change_link = True
     fieldsets = (
         (
             None,
@@ -1281,7 +1287,10 @@ class TitleHistoryAdmin(EntityAdmin):
         (
             "General",
             {
-                "fields": ("date",),
+                "fields": (
+                    "title",
+                    "date",
+                ),
                 "classes": (),
             },
         ),
@@ -1661,6 +1670,7 @@ class CharacterHistoryInlineAdmin(EntityStackedInline):
     model = CharacterHistory
     fk_name = "character"
     extra = 0
+    show_change_link = True
     fieldsets = (
         (
             None,
@@ -1829,8 +1839,8 @@ class CharacterHistoryInlineAdmin(EntityStackedInline):
 @admin.action(description="Generate selected characters data in Paradox format")
 def generate_character_data(modeladmin, request, queryset):
     all_data = {}
-    for character in queryset:
-        all_data.update(character.revert_data())
+    for item in queryset:
+        all_data.update(item.revert_data())
     text = revert(all_data)
     return HttpResponse(text.encode("utf_8_sig"), content_type="text/plain")
 

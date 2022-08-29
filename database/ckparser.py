@@ -95,6 +95,7 @@ def parse_text(text, return_text_on_error=False, filename=None):
     """
     root = {}
     nodes = [("", root)]
+    local_variables = {}
     # Cleaning document
     strings = {}
     for index, match in enumerate(regex_string.finditer(text)):
@@ -186,8 +187,9 @@ def parse_text(text, return_text_on_error=False, filename=None):
                                 "@value": result,
                             }
                             if result and key.startswith("@"):
-                                variables[key.lstrip("@")] = result
-                        elif value.startswith("@"):
+                                variable_name = key.lstrip("@")
+                                variables[variable_name] = local_variables[variable_name] = result
+                        elif value.startswith("@") or value in local_variables:
                             node[key] = {
                                 "@variable": value,
                                 "@value": variables.get(value.lstrip("@")),
@@ -195,11 +197,13 @@ def parse_text(text, return_text_on_error=False, filename=None):
                         else:
                             node[key] = value
                             if key.startswith("@"):
-                                variables[key.lstrip("@")] = value
+                                variable_name = key.lstrip("@")
+                                variables[variable_name] = local_variables[variable_name] = value
                     else:
                         node[key] = value
                         if key.startswith("@"):
-                            variables[key.lstrip("@")] = value
+                            variable_name = key.lstrip("@")
+                            variables[variable_name] = local_variables[variable_name] = value
             # If line is closing block
             elif line_text == "}":
                 # Return to previous node
@@ -491,7 +495,7 @@ def save_variables():
 
 if __name__ == "__main__":
     if 2 > len(sys.argv) > 4:
-        logger.info("Usage: python parser.py <directory or file> [<output directory>] [<encoding: utf_8_sig>]")
+        logger.info("Usage: python ckparser.py <directory or file> [<output directory>] [<encoding: utf_8_sig>]")
         sys.exit(0)
     load_variables()
     if os.path.isdir(sys.argv[1]):

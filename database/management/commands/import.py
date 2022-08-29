@@ -10,7 +10,7 @@ import re
 from django.core.management import BaseCommand
 
 from database.models import *
-from database.parser import parse_all_files, parse_all_locales, parse_file
+from database.ckparser import parse_all_files, parse_all_locales, parse_file
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +151,9 @@ class Command(BaseCommand):
                 or get_locale(f"{model_name}_{key}_desc")
                 or get_locale(f"{model_name}_{key}_flavor")
             )
+            if len(key) > 64 or len(name) > 127:
+                logger.error(f'Unable to create {verbose_name} for "{key}" because ID and/or name is too long')
+                return None
             obj, created = model.objects.get_or_create(
                 id=key,
                 defaults=dict(
@@ -1076,7 +1079,7 @@ class Command(BaseCommand):
                 for date, subitem in item.items():
                     if date := regex_date.fullmatch(date) and convert_date(date, key):
                         if isinstance(subitem, list):
-                            subitem = {k: v for i in subitem for k, v in i.items()}
+                            subitem = {k: v for i in subitem for k, v in i.items() if isinstance(i, dict)}
                         if not subitem:
                             continue
                         effect = subitem.get("effect", {})
