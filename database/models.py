@@ -435,6 +435,8 @@ class CharacterHistory(Entity, BaseCharacter):
     )
     raw_data = JsonField(blank=True, null=True)
 
+    _ignore_log = ("raw_data",)
+
     def __str__(self):
         return f"{self.character} - {to_pdx_date(self.date)}"
 
@@ -866,6 +868,8 @@ class TitleHistory(Entity):
     )
     raw_data = JsonField(blank=True, null=True)
 
+    _ignore_log = ("raw_data",)
+
     def __str__(self):
         return f"{self.title} - {to_pdx_date(self.date)}"
 
@@ -969,6 +973,8 @@ class ProvinceHistory(Entity):
         related_name="history",
     )
     raw_data = JsonField(blank=True, null=True)
+
+    _ignore_log = ("raw_data",)
 
     def __str__(self):
         return f"{self.province} - {to_pdx_date(self.date)}"
