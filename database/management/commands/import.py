@@ -1334,7 +1334,7 @@ class Command(BaseCommand):
             for model, keys in all_objects.items():
                 deleted, total_deleted = model.objects.exclude(id__in=keys).delete()
                 all_deleted.update(total_deleted or {})
-            for key, value in all_deleted.items():
+            for key, value in sorted(all_deleted.items()):
                 logger.info(f"{value} {key} deleted!")
 
         with open("_all_missings.json", "w") as file:
