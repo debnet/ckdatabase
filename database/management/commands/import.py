@@ -132,7 +132,7 @@ class Command(BaseCommand):
                 return None
             model_name, verbose_name = model._meta.model_name, model._meta.verbose_name
             if isinstance(key, list):
-                logger.warning(f"Multiple keys ({key}) provided for {verbose_name}")
+                logger.warning(f"Multiple keys {key} provided for {verbose_name}")
                 key = key[-1]
             pk_field = model._meta.get_field("id")
             key = pk_field.to_python(key)
@@ -181,7 +181,7 @@ class Command(BaseCommand):
 
         def get_locale(key, keep=False):
             if isinstance(key, list):
-                logger.warning(f"Multiple keys ({key}) requested for locale")
+                logger.warning(f"Multiple keys {key} requested for locale")
                 key = key[-1]
             locale = all_locales.get(key, key if keep else "")
             for key, sublocale in regex_sublocale.findall(locale):
@@ -194,10 +194,11 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("common/culture/pillars/") or "ethos" not in file:
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated ethos "{key}"')
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
+                    logger.warning(f'Empty or unexpected data for ethos "{key}": "{item}"')
                     continue
                 ethos, created = Ethos.objects.update_or_create(
                     id=key,
@@ -219,10 +220,11 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("common/culture/pillars/") or "heritage" not in file:
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated heritage "{key}"')
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
+                    logger.warning(f'Empty or unexpected data for heritage "{key}": "{item}"')
                     continue
                 heritage, created = Heritage.objects.update_or_create(
                     id=key,
@@ -244,10 +246,11 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("common/culture/pillars/") or "language" not in file:
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated language "{key}"')
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
+                    logger.warning(f'Empty or unexpected data for language "{key}": "{item}"')
                     continue
                 language, created = Language.objects.update_or_create(
                     id=key,
@@ -268,10 +271,11 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("common/culture/pillars/") or "martial_custom" not in file:
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated martial custom "{key}"')
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
+                    logger.warning(f'Empty or unexpected data for martial custom "{key}": "{item}"')
                     continue
                 martial_custom, created = MartialCustom.objects.update_or_create(
                     id=key,
@@ -293,10 +297,11 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("common/culture/name_lists/"):
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated name list "{key}"')
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
+                    logger.warning(f'Empty or unexpected data for name list "{key}": "{item}"')
                     continue
                 name_list, created = NameList.objects.update_or_create(
                     id=key,
@@ -317,10 +322,11 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("common/culture/traditions/"):
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated tradition "{key}"')
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
+                    logger.warning(f'Empty or unexpected data for tradition "{key}": "{item}"')
                     continue
                 tradition, created = Tradition.objects.update_or_create(
                     id=key,
@@ -343,10 +349,11 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("common/ethnicities/"):
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated ethnicity "{key}"')
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
+                    logger.warning(f'Empty or unexpected data for ethnicity "{key}": "{item}"')
                     continue
                 if not item.get("template"):
                     continue
@@ -369,10 +376,11 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("common/culture/cultures/"):
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated culture "{key}"')
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
+                    logger.warning(f'Empty or unexpected data for culture "{key}": "{item}"')
                     continue
                 culture, created = Culture.objects.update_or_create(
                     id=key,
@@ -413,10 +421,11 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("common/traits/"):
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated trait "{key}"')
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
+                    logger.warning(f'Empty or unexpected data for trait "{key}": "{item}"')
                     continue
                 group = None
                 if group_key := item.get("group"):
@@ -485,9 +494,8 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("common/traits/"):
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    # logger.warning(f"Duplicated trait \"{key}\"")
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict) or not item.get("opposites"):
                     continue
                 trait = get_object(Trait, key)
@@ -500,10 +508,11 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("common/buildings/"):
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated building "{key}"')
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
+                    logger.warning(f'Empty or unexpected data for building "{key}": "{item}"')
                     continue
                 building, created = Building.objects.update_or_create(
                     id=key,
@@ -536,10 +545,11 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("common/holdings/"):
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated holding "{key}"')
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
+                    logger.warning(f'Empty or unexpected data for holding "{key}": "{item}"')
                     continue
                 holding, created = Holding.objects.update_or_create(
                     id=key,
@@ -564,10 +574,11 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("common/terrain_types/"):
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated terrain "{key}"')
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
+                    logger.warning(f'Empty or unexpected data for terrain "{key}": "{item}"')
                     continue
                 terrain, created = Terrain.objects.update_or_create(
                     id=key,
@@ -599,10 +610,11 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("common/men_at_arms_types/"):
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated men-at-arms "{key}"')
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
+                    logger.warning(f'Empty or unexpected data for men-at-arms "{key}": "{item}"')
                     continue
                 men_at_arms, created = MenAtArms.objects.update_or_create(
                     id=key,
@@ -663,10 +675,11 @@ class Command(BaseCommand):
                     continue
                 group_set = doctrines_by_group.setdefault(group_key, set())
                 for key, item in group.items():
-                    if isinstance(item, list):
-                        item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                    if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                         logger.warning(f'Duplicated doctrine "{key}"')
+                        item = {k: v for d in item for k, v in d.items()}
                     if not item or not isinstance(item, dict) or not ("doctrine" in key or "tenet" in key):
+                        logger.warning(f'Empty or unexpected data for doctrine "{key}": "{item}"')
                         continue
                     group_set.add(key)
                     group_name = get_locale(group_key) or get_locale(f"{group_key}_name")
@@ -713,10 +726,11 @@ class Command(BaseCommand):
                     continue
                 group_doctrines = set(group.get("doctrine") or [])
                 for key, item in group.get("faiths", {}).items():
-                    if isinstance(item, list):
-                        item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                    if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                         logger.warning(f'Duplicated religion "{key}"')
+                        item = {k: v for d in item for k, v in d.items()}
                     if not item or not isinstance(item, dict):
+                        logger.warning(f'Empty or unexpected data for religion "{key}": "{item}"')
                         continue
                     religion, created = Religion.objects.update_or_create(
                         id=key,
@@ -773,9 +787,12 @@ class Command(BaseCommand):
                 if not key.isdigit():
                     continue
                 if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
                     logger.warning(f'Duplicated province "{key}"')
-                if not item or not isinstance(item, dict):
+                    if all(isinstance(i, dict) for i in item):
+                        item = {k: v for d in item for k, v in d.items()}
+                    else:
+                        item = item[-1]
+                if not isinstance(item, dict):
                     item = {"terrain": item}
                 province_terrain = province_terrains.setdefault(str(key), {})
                 province_terrain.update(item)
@@ -810,6 +827,8 @@ class Command(BaseCommand):
                             province_terrain.get("terrain", default_terrain),
                             province_terrain.get("winter_severity_bias"),
                         )
+                        if isinstance(winter_severity, dict) and "@value" in winter_severity:
+                            winter_severity = winter_severity["@value"]
                     title_prefix = get_locale(f"{key}_article")
                     title_name = get_locale(key) or get_locale(f"{key}_name")
                     if title_prefix and title_name:
@@ -840,7 +859,7 @@ class Command(BaseCommand):
             for date, subitem in item.items():
                 if date := regex_date.fullmatch(date) and convert_date(date, key):
                     if isinstance(subitem, list):
-                        subitem = {k: v for d in subitem for k, v in d.items() if isinstance(d, dict)}
+                        subitem = {k: v for d in subitem for k, v in d.items()}
                         logger.warning(f'Duplicated province history "{key}" at "{to_pdx_date(date)}"')
                     if not subitem or not isinstance(subitem, dict):
                         continue
@@ -898,9 +917,12 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("common/religion/holy_sites/"):
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated holy site "{key}"')
+                    item = {k: v for d in item for k, v in d.items()}
+                if not item or not isinstance(item, dict):
+                    logger.warning(f'Empty or unexpected data for holy site "{key}": "{item}"')
+                    continue
                 holy_site, created = HolySite.objects.update_or_create(
                     id=key,
                     defaults=dict(
@@ -922,10 +944,11 @@ class Command(BaseCommand):
                 if not group or not isinstance(group, dict):
                     continue
                 for key, item in group.get("faiths", {}).items():
-                    if isinstance(item, list):
-                        item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                    if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                         logger.warning(f'Duplicated faith "{key}"')
+                        item = {k: v for d in item for k, v in d.items()}
                     if not item or not isinstance(item, dict):
+                        logger.warning(f'Empty or unexpected data for faith "{key}": "{item}"')
                         continue
                     religion = get_object(Religion, key)
                     if holy_sites := item.get("holy_site"):
@@ -942,10 +965,11 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("common/nicknames/"):
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated nickname "{key}"')
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
+                    logger.warning(f'Empty or unexpected data for nickname "{key}": "{item}"')
                     continue
                 nickname, created = Nickname.objects.update_or_create(
                     id=key,
@@ -968,10 +992,11 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("common/deathreasons/"):
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated death reason "{key}"')
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
+                    logger.warning(f'Empty or unexpected data for death reason "{key}": "{item}"')
                     continue
                 death_reason, created = DeathReason.objects.update_or_create(
                     id=key,
@@ -1002,10 +1027,11 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("common/dynasties/"):
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated dynasty "{key}"')
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
+                    logger.warning(f'Empty or unexpected data for dynasty "{key}": "{item}"')
                     continue
                 dynasty, created = Dynasty.objects.update_or_create(
                     id=key,
@@ -1030,10 +1056,11 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("common/dynasty_houses/"):
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated house "{key}"')
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
+                    logger.warning(f'Empty or unexpected data for house "{key}": "{item}"')
                     continue
                 house, created = House.objects.update_or_create(
                     id=key,
@@ -1065,10 +1092,11 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("history/characters/"):
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated character "{key}"')
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
+                    logger.warning(f'Empty or unexpected data for character "{key}": "{item}"')
                     continue
                 item = {k: v for k, v in item.items() if not regex_date.fullmatch(k)}
                 house = get_object(House, item.get("dynasty_house"))
@@ -1110,8 +1138,8 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("history/characters/"):
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
                     continue
                 if "father" in item or "mother" in item:
@@ -1128,8 +1156,8 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("history/characters/"):
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
                     continue
                 character = get_object(Character, key)
@@ -1263,10 +1291,11 @@ class Command(BaseCommand):
                 if not group or not isinstance(group, dict):
                     continue
                 for key, item in group.items():
-                    if isinstance(item, list):
-                        item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                    if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                         logger.warning(f'Duplicated law "{key}"')
+                        item = {k: v for d in item for k, v in d.items()}
                     if not item or not isinstance(item, dict):
+                        logger.warning(f'Empty or unexpected data for law "{key}": "{item}"')
                         continue
                     law, created = Law.objects.update_or_create(
                         id=key,
@@ -1289,10 +1318,11 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("history/titles/"):
                 continue
             for key, item in subdata.items():
-                if isinstance(item, list):
-                    item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated title "{key}"')
+                    item = {k: v for d in item for k, v in d.items()}
                 if not item or not isinstance(item, dict):
+                    logger.warning(f'Empty or unexpected data for title "{key}": "{item}"')
                     continue
                 title = get_object(Title, key)
                 for date, subitem in item.items():
