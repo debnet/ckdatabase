@@ -1126,11 +1126,11 @@ class Building(BaseModel):
         on_delete=models.SET_NULL,
         related_name="previous_building",
     )
-    construction_time = models.PositiveSmallIntegerField(blank=True, null=True)
-    cost_gold = models.PositiveSmallIntegerField(blank=True, null=True)
-    cost_prestige = models.PositiveSmallIntegerField(blank=True, null=True)
-    levy = models.PositiveSmallIntegerField(blank=True, null=True)
-    max_garrison = models.PositiveSmallIntegerField(blank=True, null=True)
+    construction_time = models.PositiveIntegerField(blank=True, null=True)
+    cost_gold = models.PositiveIntegerField(blank=True, null=True)
+    cost_prestige = models.PositiveIntegerField(blank=True, null=True)
+    levy = models.PositiveIntegerField(blank=True, null=True)
+    max_garrison = models.PositiveIntegerField(blank=True, null=True)
     garrison_reinforcement_factor = models.FloatField(blank=True, null=True)
 
 
