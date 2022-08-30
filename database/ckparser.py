@@ -51,7 +51,7 @@ regex_list = re.compile(r"\s*=\s*list\s*([\{\"\|])", re.MULTILINE)
 # Regex for color blocks (color = [rgb|hsv] { x y z })
 regex_color = re.compile(r"=\s*(?P<type>\w+)\s*{")
 # Regex to parse items with format key=value
-regex_inline = re.compile(r"([^\s]+\s*[!<=>]+\s*(((?![@\"])\[?[^\s]+\]?)|(\"[^\"]+\")|(@\[[^\]]+\])))")
+regex_inline = re.compile(r"([^\s]+\s*[!<=>]+\s*(((?![@\"])\[?[^\s]+\]?)|(\"[^\"]+\")|(@\[[^\]]+\]))|(@\w+))")
 # Regex to parse blocks with bracket below the key
 regex_values = re.compile(r"(=\s*\n+)|(\n+\s*=)")
 # Regex to parse lines with format key=value
@@ -170,6 +170,12 @@ def parse_text(text, return_text_on_error=False, filename=None):
                             "@operator": operator,
                             "@value": value,
                         }
+                        if isinstance(value, str) and (value.startswith("@") or value in variables):
+                            node[key]["@value"] = {
+                                "@type": "variable",
+                                "@value": value,
+                                "@result": variables.get(value.lstrip("@")),
+                            }
                     # If value is a formula
                     elif isinstance(value, str):
                         if value.startswith("@[") and value.endswith("]"):
@@ -183,25 +189,37 @@ def parse_text(text, return_text_on_error=False, filename=None):
                             if isinstance(result, float):
                                 result = round(result, 5)
                             node[key] = {
-                                "@formula": value,
-                                "@value": result,
+                                "@type": "formula",
+                                "@value": value,
+                                "@result": result,
                             }
-                            if result and key.startswith("@"):
+                            if result:  # and key.startswith("@"):
                                 variable_name = key.lstrip("@")
                                 variables[variable_name] = local_variables[variable_name] = result
-                        elif value.startswith("@") or value in local_variables:
+                        elif value.startswith("@"):
                             node[key] = {
-                                "@variable": value,
-                                "@value": variables.get(value.lstrip("@")),
+                                "@type": "variable",
+                                "@value": value,
+                                "@result": variables.get(value.lstrip("@")),
                             }
+                        elif variable_value := variables.get(value):
+                            if not isinstance(variable_value, str):
+                                node[key] = {
+                                    "@type": "variable",
+                                    "@value": value,
+                                    "@result": variable_value,
+                                }
+                                if value and key.startswith("@"):
+                                    variable_name = key.lstrip("@")
+                                    variables[variable_name] = local_variables[variable_name] = value
                         else:
                             node[key] = value
-                            if key.startswith("@"):
+                            if value and key.startswith("@"):
                                 variable_name = key.lstrip("@")
                                 variables[variable_name] = local_variables[variable_name] = value
                     else:
                         node[key] = value
-                        if key.startswith("@"):
+                        if value and key.startswith("@"):
                             variable_name = key.lstrip("@")
                             variables[variable_name] = local_variables[variable_name] = value
             # If line is closing block
@@ -230,8 +248,9 @@ def parse_text(text, return_text_on_error=False, filename=None):
                         if item.startswith("@"):
                             node.append(
                                 {
-                                    "@variable": item,
-                                    "@value": variables.get(item.lstrip("@")),
+                                    "@type": "variable",
+                                    "@value": item,
+                                    "@result": variables.get(item.lstrip("@")),
                                 }
                             )
                         else:
@@ -287,7 +306,7 @@ def parse_file(path, output_dir=None, encoding="utf_8_sig", base_dir=None, save=
     return data
 
 
-def parse_all_files(path, output_dir=None, encoding="utf_8_sig", keep_data=False, save=True):
+def parse_all_files(path, output_dir=None, encoding="utf_8_sig", keep_data=False, save=True, variables_first=True):
     """
     Parse all text files in a directory
     :param path: Path where to find files to parse
@@ -295,21 +314,28 @@ def parse_all_files(path, output_dir=None, encoding="utf_8_sig", keep_data=False
     :param encoding: Encoding used to read files
     :param keep_data: (default false) Return parsed data of all files in a dictionary
     :param save: Save every parsed data in output directory
+    :param variables_first: Try to parse variables first
     :return: Dictionary (key: file, value: parsed data if keep_data=True)
     """
     start_time = datetime.datetime.utcnow()
     success, errors = {}, []
-    for current_path, _, all_files in os.walk(path):
-        for filename in all_files:
-            if not filename.lower().endswith(".txt"):
-                continue
-            filepath = os.path.join(current_path, filename)
-            data = parse_file(filepath, output_dir=output_dir, encoding=encoding, base_dir=path, save=save)
-            if isinstance(data, str):
-                errors.append(filepath)
-                continue
-            filepath = filepath.replace(path, "").replace(os.sep, "/").lstrip("/").rstrip(".txt")
-            success[filepath] = data if keep_data else True
+    for loop in range(2):
+        for current_path, _, all_files in os.walk(path):
+            if variables_first:
+                if not loop and not current_path.endswith("script_values"):
+                    continue
+            for filename in all_files:
+                if not filename.lower().endswith(".txt"):
+                    continue
+                filepath = os.path.join(current_path, filename)
+                data = parse_file(filepath, output_dir=output_dir, encoding=encoding, base_dir=path, save=save)
+                if isinstance(data, str):
+                    errors.append(filepath)
+                    continue
+                filepath = filepath.replace(path, "").replace(os.sep, "/").lstrip("/").rstrip(".txt")
+                success[filepath] = data if keep_data else True
+        if not variables_first:
+            break
     total_time = (datetime.datetime.utcnow() - start_time).total_seconds()
     logger.info(f"{len(success)} parsed file(s) and {len(errors)} errors in {total_time:0.3f}s!")
     for error in errors:
@@ -464,12 +490,9 @@ def revert_special(obj, from_key=None):
     if "@operator" in obj:
         operator, value = obj["@operator"], obj["@value"]
         return f"{from_key} {operator} {revert_value(value, from_key)}"
-    elif "@formula" in obj:
-        formula, value = obj["@formula"], obj["@value"]
-        return f"{from_key} = {formula}"
-    elif "@variable" in obj:
-        variable, value = obj["@variable"], obj["@value"]
-        return f"{from_key or variable} = {revert_value(value, from_key)}"
+    elif "@type" in obj:
+        value, result = obj["@value"], obj["@result"]
+        return f"{from_key or value} = {value}"
 
 
 def load_variables():

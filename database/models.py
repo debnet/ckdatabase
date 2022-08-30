@@ -31,6 +31,10 @@ class BaseModel(Entity):
     class Meta:
         abstract = True
 
+    @property
+    def keys(self):
+        return self.id
+
     def __str__(self):
         return str(self.name or self.id)
 
@@ -437,6 +441,10 @@ class CharacterHistory(Entity, BaseCharacter):
 
     _ignore_log = ("raw_data",)
 
+    @property
+    def keys(self):
+        return self.character_id, to_pdx_date(self.date)
+
     def __str__(self):
         return f"{self.character} - {to_pdx_date(self.date)}"
 
@@ -582,6 +590,10 @@ class CultureEthnicity(Entity):
     )
     chance = models.PositiveSmallIntegerField(blank=True, null=True)
 
+    @property
+    def keys(self):
+        return self.culture_id, self.ethnicity_id
+
     def __str__(self):
         return f"{self.culture} - {self.ethnicity}"
 
@@ -626,6 +638,89 @@ class Tradition(BaseModel):
     )
 
 
+class Era(BaseModel):
+    year = models.PositiveSmallIntegerField(blank=True, null=True)
+
+
+class Innovation(BaseModel):
+    group = models.CharField(
+        max_length=32,
+        blank=True,
+        choices=(
+            ("culture_group_civic", "Civic"),
+            ("culture_group_regional", "Cultural and Regional"),
+            ("culture_group_military", "Military"),
+        ),
+    )
+    era = models.ForeignKey(
+        "Era",
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="innovations",
+    )
+
+
+class CultureOrHeritageHistory(Entity):
+    date = models.DateField()
+    join_era = models.ForeignKey(
+        "Era",
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="%(class)s_joined",
+    )
+    discover_innovations = models.ManyToManyField(
+        "Innovation",
+        blank=True,
+        related_name="%(class)s_discovered",
+    )
+    raw_data = JsonField(blank=True, null=True)
+
+    _ignore_log = ("raw_data",)
+
+    class Meta:
+        abstract = True
+
+
+class HeritageHistory(CultureOrHeritageHistory):
+    heritage = models.ForeignKey(
+        "Heritage",
+        on_delete=models.CASCADE,
+        related_name="history",
+    )
+
+    @property
+    def keys(self):
+        return self.heritage_id, to_pdx_date(self.date)
+
+    def __str__(self):
+        return f"{self.heritage} - {to_pdx_date(self.date)}"
+
+    class Meta:
+        unique_together = ("heritage", "date")
+        verbose_name_plural = "heritage histories"
+
+
+class CultureHistory(CultureOrHeritageHistory):
+    culture = models.ForeignKey(
+        "Culture",
+        on_delete=models.CASCADE,
+        related_name="history",
+    )
+
+    @property
+    def keys(self):
+        return self.culture_id, to_pdx_date(self.date)
+
+    def __str__(self):
+        return f"{self.culture} - {to_pdx_date(self.date)}"
+
+    class Meta:
+        unique_together = ("culture", "date")
+        verbose_name_plural = "culture histories"
+
+
 class Religion(BaseModel):
     group = models.CharField(max_length=32, blank=True)
     color = models.CharField(max_length=16, blank=True)
@@ -666,6 +761,10 @@ class ReligionTrait(Entity):
     )
     is_virtue = models.BooleanField(default=False)
     piety = models.SmallIntegerField(blank=True, null=True)
+
+    @property
+    def keys(self):
+        return self.religion_id, self.trait_id
 
     def __str__(self):
         return f"{self.religion} - {self.trait}"
@@ -713,6 +812,10 @@ class DoctrineTrait(Entity):
     )
     is_virtue = models.BooleanField(default=False)
     piety = models.SmallIntegerField(blank=True, null=True)
+
+    @property
+    def keys(self):
+        return self.doctrine_id, self.trait_id
 
     def __str__(self):
         return f"{self.doctrine} - {self.trait}"
@@ -870,6 +973,10 @@ class TitleHistory(Entity):
 
     _ignore_log = ("raw_data",)
 
+    @property
+    def keys(self):
+        return self.title_id, to_pdx_date(self.date)
+
     def __str__(self):
         return f"{self.title} - {to_pdx_date(self.date)}"
 
@@ -936,7 +1043,7 @@ class Province(BaseModel):
         on_delete=models.SET_NULL,
         related_name="provinces",
     )
-    winter_severity = models.FloatField(blank=True, null=True)
+    winter_severity_bias = models.FloatField(blank=True, null=True)
 
 
 class ProvinceHistory(Entity):
@@ -951,30 +1058,34 @@ class ProvinceHistory(Entity):
         blank=True,
         null=True,
         on_delete=models.SET_NULL,
-        related_name="history",
+        related_name="province_history",
     )
     religion = models.ForeignKey(
         "Religion",
         blank=True,
         null=True,
         on_delete=models.SET_NULL,
-        related_name="history",
+        related_name="province_history",
     )
     holding = models.ForeignKey(
         "Holding",
         blank=True,
         null=True,
         on_delete=models.SET_NULL,
-        related_name="history",
+        related_name="province_history",
     )
     buildings = models.ManyToManyField(
         "Building",
         blank=True,
-        related_name="history",
+        related_name="province_history",
     )
     raw_data = JsonField(blank=True, null=True)
 
     _ignore_log = ("raw_data",)
+
+    @property
+    def keys(self):
+        return self.province_id, to_pdx_date(self.date)
 
     def __str__(self):
         return f"{self.province} - {to_pdx_date(self.date)}"
@@ -1000,6 +1111,14 @@ class Holding(BaseModel):
 
 
 class Building(BaseModel):
+    type = models.CharField(
+        max_length=16,
+        blank=True,
+        choices=(
+            ("duchy_capital", "Duchy"),
+            ("special", "Special"),
+        ),
+    )
     next_building = models.OneToOneField(
         "self",
         blank=True,
@@ -1007,6 +1126,12 @@ class Building(BaseModel):
         on_delete=models.SET_NULL,
         related_name="previous_building",
     )
+    construction_time = models.PositiveSmallIntegerField(blank=True, null=True)
+    cost_gold = models.PositiveSmallIntegerField(blank=True, null=True)
+    cost_prestige = models.PositiveSmallIntegerField(blank=True, null=True)
+    levy = models.PositiveSmallIntegerField(blank=True, null=True)
+    max_garrison = models.PositiveSmallIntegerField(blank=True, null=True)
+    garrison_reinforcement_factor = models.FloatField(blank=True, null=True)
 
 
 MEN_AT_ARMS_TYPES = (
@@ -1025,6 +1150,9 @@ MEN_AT_ARMS_TYPES = (
 
 class MenAtArms(BaseModel):
     type = models.CharField(max_length=16, blank=True, choices=MEN_AT_ARMS_TYPES)
+    buy_cost = models.FloatField(blank=True, null=True)
+    low_maintenance_cost = models.FloatField(blank=True, null=True)
+    high_maintenance_cost = models.FloatField(blank=True, null=True)
     stack = models.PositiveSmallIntegerField(blank=True, null=True)
     damage = models.PositiveSmallIntegerField(blank=True, null=True)
     toughness = models.PositiveSmallIntegerField(blank=True, null=True)
@@ -1032,8 +1160,6 @@ class MenAtArms(BaseModel):
     screen = models.PositiveSmallIntegerField(blank=True, null=True)
     siege_tier = models.PositiveSmallIntegerField(blank=True, null=True)
     siege_value = models.FloatField(blank=True, null=True)
-
-    can_be_hired = models.BooleanField(blank=True, null=True)
 
     class Meta:
         verbose_name = "men-at-arms"
@@ -1056,6 +1182,10 @@ class TerrainModifier(Entity):
     pursuit = models.SmallIntegerField(blank=True, null=True)
     screen = models.SmallIntegerField(blank=True, null=True)
 
+    @property
+    def keys(self):
+        return self.men_at_arms_id, self.terrain_id
+
     def __str__(self):
         return f"{self.men_at_arms} - {self.terrain}"
 
@@ -1072,6 +1202,10 @@ class Counter(Entity):
     type = models.CharField(max_length=16, blank=True, choices=MEN_AT_ARMS_TYPES)
     factor = models.FloatField(default=1.0)
 
+    @property
+    def keys(self):
+        return self.men_at_arms_id, self.type
+
     def __str__(self):
         return f"{self.men_at_arms} - {self.get_type_display()}"
 
@@ -1087,14 +1221,18 @@ MODELS = (
     Dynasty,
     House,
     Culture,
+    CultureHistory,
     Ethnicity,
     CultureEthnicity,
     Ethos,
     Heritage,
+    HeritageHistory,
     Language,
     MartialCustom,
     NameList,
     Tradition,
+    Era,
+    Innovation,
     Religion,
     ReligionTrait,
     HolySite,

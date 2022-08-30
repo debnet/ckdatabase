@@ -5,6 +5,7 @@ from django.http import HttpResponse
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 
+from database.ckparser import revert
 from database.models import (
     Building,
     Character,
@@ -12,16 +13,20 @@ from database.models import (
     Counter,
     Culture,
     CultureEthnicity,
+    CultureHistory,
     DeathReason,
     Doctrine,
     DoctrineTrait,
     Dynasty,
+    Era,
     Ethnicity,
     Ethos,
     Heritage,
+    HeritageHistory,
     Holding,
     HolySite,
     House,
+    Innovation,
     Language,
     Law,
     MartialCustom,
@@ -40,7 +45,6 @@ from database.models import (
     Trait,
     User,
 )
-from database.ckparser import revert
 
 admin.site.site_header = "Crusader Kings Database"
 
@@ -116,9 +120,102 @@ class EthosAdmin(BaseAdmin):
     pass
 
 
+class HeritageHistoryInlineAdmin(EntityTabularInline):
+    model = HeritageHistory
+    extra = 0
+    show_change_link = True
+    ordering = (
+        "heritage",
+        "date",
+    )
+    autocomplete_fields = (
+        "join_era",
+        "discover_innovations",
+    )
+    exclude = ("raw_data",)
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("heritage", "join_era")
+            .prefetch_related("discover_innovations")
+        )
+
+
 @admin.register(Heritage)
 class HeritageAdmin(BaseAdmin):
-    pass
+    inlines = (HeritageHistoryInlineAdmin,)
+
+
+@admin.register(HeritageHistory)
+class HeritageHistoryAdmin(BaseAdmin):
+    fieldsets = (
+        (
+            "General",
+            {
+                "fields": (
+                    "heritage",
+                    "date",
+                ),
+                "classes": (),
+            },
+        ),
+        (
+            "Changes",
+            {
+                "fields": (
+                    "join_era",
+                    "discover_innovations",
+                ),
+                "classes": (),
+            },
+        ),
+        (
+            "Internal",
+            {
+                "fields": ("raw_data",),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+    list_display = (
+        "heritage_link",
+        "date",
+        "join_era_link",
+    )
+    list_filter = ("date",)
+    search_fields = (
+        "heritage__id",
+        "heritage__name",
+        "join_era__id",
+        "join_era__name",
+    )
+    ordering = (
+        "heritage",
+        "date",
+    )
+    autocomplete_fields = (
+        "heritage",
+        "join_era",
+        "discover_innovations",
+    )
+    readonly_fields = ("heritage",)
+
+    @admin.display(description="heritage", ordering="heritage__name")
+    def heritage_link(self, obj):
+        if obj.heritage:
+            url = reverse("admin:database_heritage_change", args=(obj.heritage.pk,))
+            return mark_safe(f'<a href="{url}">{obj.heritage}</a>')
+
+    @admin.display(description="join_era", ordering="join_era__name")
+    def join_era_link(self, obj):
+        if obj.join_era:
+            url = reverse("admin:database_era_change", args=(obj.join_era.pk,))
+            return mark_safe(f'<a href="{url}">{obj.join_era}</a>')
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("heritage", "join_era")
 
 
 @admin.register(Language)
@@ -146,14 +243,8 @@ class TraditionAdmin(BaseAdmin):
                     "id",
                     "name",
                     "description",
+                    "category",
                 ),
-                "classes": (),
-            },
-        ),
-        (
-            "Specific",
-            {
-                "fields": ("category",),
                 "classes": (),
             },
         ),
@@ -186,6 +277,93 @@ class EthnicityAdmin(BaseAdmin):
     pass
 
 
+@admin.register(Era)
+class EraAdmin(BaseAdmin):
+    fieldsets = (
+        (
+            "General",
+            {
+                "fields": (
+                    "id",
+                    "name",
+                    "description",
+                    "year",
+                ),
+                "classes": (),
+            },
+        ),
+        (
+            "Internal",
+            {
+                "fields": (
+                    "raw_data",
+                    "exists",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+    list_display = (
+        "name",
+        "year",
+        "exists",
+    )
+
+
+@admin.register(Innovation)
+class InnovationAdmin(BaseAdmin):
+    fieldsets = (
+        (
+            "General",
+            {
+                "fields": (
+                    "id",
+                    "name",
+                    "description",
+                    "group",
+                    "era",
+                ),
+                "classes": (),
+            },
+        ),
+        (
+            "Internal",
+            {
+                "fields": (
+                    "raw_data",
+                    "exists",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+    list_display = (
+        "name",
+        "group",
+        "era_link",
+        "exists",
+    )
+    list_filter = (
+        "exists",
+        "group",
+    )
+    search_fields = (
+        "id",
+        "name",
+        "description",
+        "group",
+    )
+
+    @admin.display(description="era", ordering="era__name")
+    def era_link(self, obj):
+        if obj.era:
+            url = reverse("admin:database_era_change", args=(obj.era.pk,))
+            return mark_safe(f'<a href="{url}">{obj.era}</a>')
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("era")
+
+
 class CultureEthnicityInlineAdmin(EntityTabularInline):
     model = CultureEthnicity
     extra = 0
@@ -195,9 +373,30 @@ class CultureEthnicityInlineAdmin(EntityTabularInline):
         "ethnicity",
     )
     autocomplete_fields = ("ethnicity",)
+    exclude = ("raw_data",)
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("culture", "ethnicity")
+
+
+class CultureHistoryInlineAdmin(EntityTabularInline):
+    model = CultureHistory
+    extra = 0
+    show_change_link = True
+    ordering = (
+        "culture",
+        "date",
+    )
+    autocomplete_fields = (
+        "join_era",
+        "discover_innovations",
+    )
+    exclude = ("raw_data",)
+
+    def get_queryset(self, request):
+        return (
+            super().get_queryset(request).select_related("culture", "join_era").prefetch_related("discover_innovations")
+        )
 
 
 @admin.register(Culture)
@@ -268,7 +467,10 @@ class CultureAdmin(BaseAdmin):
         "name_list",
         "traditions",
     )
-    inlines = (CultureEthnicityInlineAdmin,)
+    inlines = (
+        CultureEthnicityInlineAdmin,
+        CultureHistoryInlineAdmin,
+    )
 
     @admin.display(description="ethos", ordering="ethos__name")
     def ethos_link(self, obj):
@@ -335,6 +537,76 @@ class CultureEthnicityAdmin(EntityAdmin):
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("culture", "ethnicity")
+
+
+@admin.register(CultureHistory)
+class CultureHistoryAdmin(BaseAdmin):
+    fieldsets = (
+        (
+            "General",
+            {
+                "fields": (
+                    "culture",
+                    "date",
+                ),
+                "classes": (),
+            },
+        ),
+        (
+            "Changes",
+            {
+                "fields": (
+                    "join_era",
+                    "discover_innovations",
+                ),
+                "classes": (),
+            },
+        ),
+        (
+            "Internal",
+            {
+                "fields": ("raw_data",),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+    list_display = (
+        "culture_link",
+        "date",
+        "join_era_link",
+    )
+    list_filter = ("date",)
+    search_fields = (
+        "culture__id",
+        "culture__name",
+        "join_era__id",
+        "join_era__name",
+    )
+    ordering = (
+        "culture",
+        "date",
+    )
+    autocomplete_fields = (
+        "culture",
+        "join_era",
+        "discover_innovations",
+    )
+    readonly_fields = ("culture",)
+
+    @admin.display(description="culture", ordering="culture__name")
+    def culture_link(self, obj):
+        if obj.culture:
+            url = reverse("admin:database_culture_change", args=(obj.culture.pk,))
+            return mark_safe(f'<a href="{url}">{obj.culture}</a>')
+
+    @admin.display(description="join_era", ordering="join_era__name")
+    def join_era_link(self, obj):
+        if obj.join_era:
+            url = reverse("admin:database_era_change", args=(obj.join_era.pk,))
+            return mark_safe(f'<a href="{url}">{obj.join_era}</a>')
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("culture", "join_era")
 
 
 @admin.register(Trait)
@@ -486,6 +758,7 @@ class BuildingAdmin(BaseAdmin):
                     "id",
                     "name",
                     "description",
+                    "type",
                 ),
                 "classes": (),
             },
@@ -493,7 +766,15 @@ class BuildingAdmin(BaseAdmin):
         (
             "Specific",
             {
-                "fields": ("next_building",),
+                "fields": (
+                    "next_building",
+                    "construction_time",
+                    "cost_gold",
+                    "cost_prestige",
+                    "levy",
+                    "max_garrison",
+                    "garrison_reinforcement_factor",
+                ),
                 "classes": (),
             },
         ),
@@ -510,8 +791,15 @@ class BuildingAdmin(BaseAdmin):
     )
     list_display = (
         "name",
+        "type",
         "next_building_link",
+        "construction_time",
+        "cost_gold",
         "exists",
+    )
+    list_filter = (
+        "exists",
+        "type",
     )
     search_fields = (
         "id",
@@ -649,6 +937,7 @@ class TerrainModifierInlineAdmin(EntityTabularInline):
         "terrain",
     )
     autocomplete_fields = ("terrain",)
+    exclude = ("raw_data",)
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("men_at_arms", "terrain")
@@ -662,6 +951,7 @@ class CounterInlineAdmin(EntityTabularInline):
         "men_at_arms",
         "type",
     )
+    exclude = ("raw_data",)
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("men_at_arms")
@@ -678,7 +968,9 @@ class MenAtArmsAdmin(BaseAdmin):
                     "name",
                     "description",
                     "type",
-                    "can_be_hired",
+                    "buy_cost",
+                    "low_maintenance_cost",
+                    "high_maintenance_cost",
                 ),
                 "classes": (),
             },
@@ -712,12 +1004,13 @@ class MenAtArmsAdmin(BaseAdmin):
     list_display = (
         "name",
         "type",
+        "buy_cost",
+        "stack",
         "exists",
     )
     list_filter = (
         "exists",
         "type",
-        "can_be_hired",
     )
     search_fields = (
         "id",
@@ -816,6 +1109,7 @@ class DoctrineTraitInlineAdmin(EntityTabularInline):
         "trait",
     )
     autocomplete_fields = ("trait",)
+    exclude = ("raw_data",)
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("doctrine", "trait")
@@ -924,6 +1218,7 @@ class ReligionTraitInlineAdmin(EntityTabularInline):
         "trait",
     )
     autocomplete_fields = ("trait",)
+    exclude = ("raw_data",)
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("religion", "trait")
@@ -1118,7 +1413,7 @@ class ProvinceAdmin(BaseAdmin):
                     "terrain",
                     "special_building_slot",
                     "special_building",
-                    "winter_severity",
+                    "winter_severity_bias",
                 ),
                 "classes": (),
             },
