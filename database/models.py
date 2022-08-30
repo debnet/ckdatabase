@@ -839,27 +839,30 @@ class TitleHistory(Entity):
         blank=True,
         null=True,
         on_delete=models.SET_NULL,
-        related_name="+",
+        related_name="de_jure_liege_history",
     )
     liege = models.ForeignKey(
         "Title",
         blank=True,
         null=True,
         on_delete=models.SET_NULL,
-        related_name="+",
+        related_name="liege_history",
     )
     holder = models.ForeignKey(
         "Character",
         blank=True,
         null=True,
         on_delete=models.SET_NULL,
-        related_name="+",
+        related_name="holder_history",
     )
     is_independent = models.BooleanField(blank=True, null=True)
     is_destroyed = models.BooleanField(blank=True, null=True)
     development_level = models.SmallIntegerField(blank=True, null=True)
     succession_laws = models.ManyToManyField(
-        "Law", blank=True, limit_choices_to=Q(group__icontains="succession"), related_name="title_histories"
+        "Law",
+        blank=True,
+        limit_choices_to=Q(group__icontains="succession"),
+        related_name="title_history",
     )
     raw_data = JsonField(blank=True, null=True)
 
@@ -915,7 +918,64 @@ class Province(BaseModel):
         on_delete=models.SET_NULL,
         related_name="provinces",
     )
+    special_building_slot = models.ForeignKey(
+        "Building",
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="province_slots",
+    )
+    special_building = models.ForeignKey(
+        "Building",
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="provinces",
+    )
     winter_severity = models.FloatField(blank=True, null=True)
+
+
+class ProvinceHistory(Entity):
+    province = models.ForeignKey(
+        "Province",
+        on_delete=models.CASCADE,
+        related_name="history",
+    )
+    date = models.DateField()
+    culture = models.ForeignKey(
+        "Culture",
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="history",
+    )
+    religion = models.ForeignKey(
+        "Religion",
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="history",
+    )
+    holding = models.ForeignKey(
+        "Holding",
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="history",
+    )
+    buildings = models.ManyToManyField(
+        "Building",
+        blank=True,
+        related_name="history",
+    )
+    raw_data = JsonField(blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.province} - {to_pdx_date(self.date)}"
+
+    class Meta:
+        unique_together = ("province", "date")
+        verbose_name_plural = "province histories"
 
 
 class Holding(BaseModel):
@@ -1040,6 +1100,7 @@ MODELS = (
     TitleHistory,
     Terrain,
     Province,
+    ProvinceHistory,
     Holding,
     Building,
     MenAtArms,

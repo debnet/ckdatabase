@@ -29,6 +29,7 @@ from database.models import (
     NameList,
     Nickname,
     Province,
+    ProvinceHistory,
     Religion,
     ReligionTrait,
     Terrain,
@@ -1042,6 +1043,57 @@ class ReligionTraitAdmin(EntityAdmin):
         return super().get_queryset(request).select_related("religion", "trait")
 
 
+class ProvinceHistoryInlineAdmin(EntityStackedInline):
+    model = ProvinceHistory
+    fk_name = "province"
+    extra = 0
+    show_change_link = True
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": ("date",),
+                "classes": (),
+            },
+        ),
+        (
+            "Changes",
+            {
+                "fields": (
+                    "culture",
+                    "religion",
+                    "holding",
+                    "buildings",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+    ordering = (
+        "province",
+        "date",
+    )
+    autocomplete_fields = (
+        "culture",
+        "religion",
+        "holding",
+        "buildings",
+    )
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .select_related(
+                "province",
+                "culture",
+                "religion",
+                "holding",
+            )
+            .prefetch_related("buildings")
+        )
+
+
 @admin.register(Province)
 class ProvinceAdmin(BaseAdmin):
     fieldsets = (
@@ -1064,6 +1116,8 @@ class ProvinceAdmin(BaseAdmin):
                     "religion",
                     "holding",
                     "terrain",
+                    "special_building_slot",
+                    "special_building",
                     "winter_severity",
                 ),
                 "classes": (),
@@ -1098,6 +1152,8 @@ class ProvinceAdmin(BaseAdmin):
         "description",
         "terrain__id",
         "terrain__name",
+        "holding__id",
+        "holding__name",
         "culture__id",
         "culture__name",
         "religion__id",
@@ -1136,6 +1192,95 @@ class ProvinceAdmin(BaseAdmin):
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("terrain", "holding", "culture", "religion")
+
+
+@admin.register(ProvinceHistory)
+class ProvinceHistoryAdmin(EntityAdmin):
+    fieldsets = (
+        (
+            "General",
+            {
+                "fields": (
+                    "province",
+                    "date",
+                ),
+                "classes": (),
+            },
+        ),
+        (
+            "Changes",
+            {
+                "fields": (
+                    "culture",
+                    "religion",
+                    "holding",
+                    "buildings",
+                ),
+                "classes": (),
+            },
+        ),
+        (
+            "Internal",
+            {
+                "fields": ("raw_data",),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+    list_display = (
+        "province_link",
+        "date",
+    )
+    list_filter = ("date",)
+    search_fields = (
+        "province__id",
+        "province__name",
+        "holding__id",
+        "holding__name",
+        "culture__id",
+        "culture__name",
+        "religion__id",
+        "religion__name",
+    )
+    ordering = (
+        "province",
+        "date",
+    )
+    autocomplete_fields = (
+        "province",
+        "culture",
+        "religion",
+        "holding",
+        "buildings",
+    )
+    readonly_fields = ("province",)
+
+    @admin.display(description="province", ordering="province__name")
+    def province_link(self, obj):
+        if obj.province:
+            url = reverse("admin:database_province_change", args=(obj.province.pk,))
+            return mark_safe(f'<a href="{url}">{obj.province}</a>')
+
+    @admin.display(description="holding", ordering="holding__name")
+    def holding_link(self, obj):
+        if obj.holding:
+            url = reverse("admin:database_holding_change", args=(obj.holding.pk,))
+            return mark_safe(f'<a href="{url}">{obj.holding}</a>')
+
+    @admin.display(description="culture", ordering="culture__name")
+    def culture_link(self, obj):
+        if obj.culture:
+            url = reverse("admin:database_culture_change", args=(obj.culture.pk,))
+            return mark_safe(f'<a href="{url}">{obj.culture}</a>')
+
+    @admin.display(description="religion", ordering="religion__name")
+    def religion_link(self, obj):
+        if obj.religion:
+            url = reverse("admin:database_religion_change", args=(obj.religion.pk,))
+            return mark_safe(f'<a href="{url}">{obj.religion}</a>')
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("province", "holding", "culture", "religion")
 
 
 class TitleHistoryInlineAdmin(EntityStackedInline):

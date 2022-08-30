@@ -777,13 +777,14 @@ class Command(BaseCommand):
             if from_key:
                 yield from_key, copy, prev_key
 
-        count, count_titles, start_date = 0, 0, datetime.datetime.now()
+        count, start_date = 0, datetime.datetime.now()
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/landed_titles/"):
                 continue
             for key, item, liege_key in walk_titles(subdata):
                 if province_id := item.get("province"):
                     province_data = provinces.get(str(province_id)) or {}
+                    province_data = {k: v for k, v in province_data.items() if not regex_date.fullmatch(k)}
                     terrain, winter_severity = default_terrain, None
                     if province_terrain := province_terrains.get(str(province_id)):
                         terrain, winter_severity = (
@@ -801,6 +802,8 @@ class Command(BaseCommand):
                             culture=get_object(Culture, province_data.get("culture")),
                             religion=get_object(Religion, province_data.get("religion")),
                             holding=get_object(Holding, province_data.get("holding")),
+                            special_building_slot=get_object(Building, province_data.get("special_building_slot")),
+                            special_building=get_object(Building, province_data.get("special_building")),
                             terrain=get_object(Terrain, terrain),
                             winter_severity=winter_severity,
                             raw_data=province_data or None,
@@ -812,11 +815,34 @@ class Command(BaseCommand):
                     province.created = created
         mark_as_done(Province, count, start_date)
 
+        # Province history
+        count, start_date = 0, datetime.datetime.now()
+        for key, item in provinces.items():
+            for date, subitem in item.items():
+                if date := regex_date.fullmatch(date) and convert_date(date, key):
+                    province_history, created = ProvinceHistory.objects.update_or_create(
+                        province_id=key,
+                        date=date,
+                        defaults=dict(
+                            holding=get_object(Holding, subitem.get("holding")),
+                            culture=get_object(Culture, subitem.get("culture")),
+                            religion=get_object(Religion, subitem.get("religion")),
+                            raw_data=subitem,
+                        ),
+                    )
+                    if buildings := subitem.get("buildings"):
+                        province_history.buildings.set([get_object(Building, building) for building in buildings])
+                    keep_object(ProvinceHistory, province_history)
+                    count += 1
+                    province_history.created = created
+        mark_as_done(ProvinceHistory, count, start_date)
+
         # Title
-        count, count_titles, start_date = 0, 0, datetime.datetime.now()
+        count, start_date = 0, datetime.datetime.now()
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/landed_titles/"):
                 continue
+            item = {k: v for k, v in item.items() if not regex_date.fullmatch(k)}
             for key, item, liege_key in walk_titles(subdata):
                 title, created = Title.objects.update_or_create(
                     id=key,
@@ -1238,7 +1264,7 @@ class Command(BaseCommand):
                 for date, subitem in item.items():
                     if date := regex_date.fullmatch(date) and convert_date(date, key):
                         if isinstance(subitem, list):
-                            subitem = {k: v for i in subitem for k, v in i.items()}
+                            subitem = {k: v for i in subitem for k, v in i.items() if isinstance(i, dict)}
                         if not subitem:
                             continue
                         liege, is_independent = None, (subitem.get("liege") == 0) or None
