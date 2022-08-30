@@ -1165,6 +1165,7 @@ class ProvinceAdmin(BaseAdmin):
         "religion",
         "holding",
     )
+    inlines = (ProvinceHistoryInlineAdmin,)
 
     @admin.display(description="terrain", ordering="terrain__name")
     def terrain_link(self, obj):
