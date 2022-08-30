@@ -172,6 +172,8 @@ class Command(BaseCommand):
 
         def keep_object(model, object):
             objects = all_objects.setdefault(model, {})
+            if object.id in objects:
+                logger.warning(f'Duplicated {model._meta.verbose_name} "{object.id}" in different files')
             objects[object.id] = object
             missings = all_missings.setdefault(model._meta.model_name, [])
             if key in missings:
@@ -194,7 +196,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated ethos "{key}"')
+                    logger.warning(f'Duplicated ethos "{key}"')
                 if not item or not isinstance(item, dict):
                     continue
                 ethos, created = Ethos.objects.update_or_create(
@@ -219,7 +221,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated heritage "{key}"')
+                    logger.warning(f'Duplicated heritage "{key}"')
                 if not item or not isinstance(item, dict):
                     continue
                 heritage, created = Heritage.objects.update_or_create(
@@ -244,7 +246,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated language "{key}"')
+                    logger.warning(f'Duplicated language "{key}"')
                 if not item or not isinstance(item, dict):
                     continue
                 language, created = Language.objects.update_or_create(
@@ -268,7 +270,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated martial custom "{key}"')
+                    logger.warning(f'Duplicated martial custom "{key}"')
                 if not item or not isinstance(item, dict):
                     continue
                 martial_custom, created = MartialCustom.objects.update_or_create(
@@ -293,7 +295,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated name list "{key}"')
+                    logger.warning(f'Duplicated name list "{key}"')
                 if not item or not isinstance(item, dict):
                     continue
                 name_list, created = NameList.objects.update_or_create(
@@ -317,7 +319,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated tradition "{key}"')
+                    logger.warning(f'Duplicated tradition "{key}"')
                 if not item or not isinstance(item, dict):
                     continue
                 tradition, created = Tradition.objects.update_or_create(
@@ -343,7 +345,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated ethnicity "{key}"')
+                    logger.warning(f'Duplicated ethnicity "{key}"')
                 if not item or not isinstance(item, dict):
                     continue
                 if not item.get("template"):
@@ -369,7 +371,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated culture "{key}"')
+                    logger.warning(f'Duplicated culture "{key}"')
                 if not item or not isinstance(item, dict):
                     continue
                 culture, created = Culture.objects.update_or_create(
@@ -413,7 +415,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated trait "{key}"')
+                    logger.warning(f'Duplicated trait "{key}"')
                 if not item or not isinstance(item, dict):
                     continue
                 group = None
@@ -485,7 +487,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    # logger.warning(f"Potential duplicated trait \"{key}\"")
+                    # logger.warning(f"Duplicated trait \"{key}\"")
                 if not item or not isinstance(item, dict) or not item.get("opposites"):
                     continue
                 trait = get_object(Trait, key)
@@ -500,7 +502,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated building "{key}"')
+                    logger.warning(f'Duplicated building "{key}"')
                 if not item or not isinstance(item, dict):
                     continue
                 building, created = Building.objects.update_or_create(
@@ -536,7 +538,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated holding "{key}"')
+                    logger.warning(f'Duplicated holding "{key}"')
                 if not item or not isinstance(item, dict):
                     continue
                 holding, created = Holding.objects.update_or_create(
@@ -564,7 +566,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated terrain "{key}"')
+                    logger.warning(f'Duplicated terrain "{key}"')
                 if not item or not isinstance(item, dict):
                     continue
                 terrain, created = Terrain.objects.update_or_create(
@@ -599,7 +601,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated men-at-arms "{key}"')
+                    logger.warning(f'Duplicated men-at-arms "{key}"')
                 if not item or not isinstance(item, dict):
                     continue
                 men_at_arms, created = MenAtArms.objects.update_or_create(
@@ -663,7 +665,7 @@ class Command(BaseCommand):
                 for key, item in group.items():
                     if isinstance(item, list):
                         item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                        logger.warning(f'Potential duplicated doctrine "{key}"')
+                        logger.warning(f'Duplicated doctrine "{key}"')
                     if not item or not isinstance(item, dict) or not ("doctrine" in key or "tenet" in key):
                         continue
                     group_set.add(key)
@@ -713,7 +715,7 @@ class Command(BaseCommand):
                 for key, item in group.get("faiths", {}).items():
                     if isinstance(item, list):
                         item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                        logger.warning(f'Potential duplicated religion "{key}"')
+                        logger.warning(f'Duplicated religion "{key}"')
                     if not item or not isinstance(item, dict):
                         continue
                     religion, created = Religion.objects.update_or_create(
@@ -772,7 +774,7 @@ class Command(BaseCommand):
                     continue
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated province "{key}"')
+                    logger.warning(f'Duplicated province "{key}"')
                 if not item or not isinstance(item, dict):
                     item = {"terrain": item}
                 province_terrain = province_terrains.setdefault(str(key), {})
@@ -839,7 +841,7 @@ class Command(BaseCommand):
                 if date := regex_date.fullmatch(date) and convert_date(date, key):
                     if isinstance(subitem, list):
                         subitem = {k: v for d in subitem for k, v in d.items() if isinstance(d, dict)}
-                        logger.warning(f'Potential duplicated province history "{key}" at "{to_pdx_date(date)}"')
+                        logger.warning(f'Duplicated province history "{key}" at "{to_pdx_date(date)}"')
                     if not subitem or not isinstance(subitem, dict):
                         continue
                     province_history, created = ProvinceHistory.objects.update_or_create(
@@ -898,7 +900,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated holy site "{key}"')
+                    logger.warning(f'Duplicated holy site "{key}"')
                 holy_site, created = HolySite.objects.update_or_create(
                     id=key,
                     defaults=dict(
@@ -922,7 +924,7 @@ class Command(BaseCommand):
                 for key, item in group.get("faiths", {}).items():
                     if isinstance(item, list):
                         item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                        logger.warning(f'Potential duplicated faith "{key}"')
+                        logger.warning(f'Duplicated faith "{key}"')
                     if not item or not isinstance(item, dict):
                         continue
                     religion = get_object(Religion, key)
@@ -942,7 +944,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated nickname "{key}"')
+                    logger.warning(f'Duplicated nickname "{key}"')
                 if not item or not isinstance(item, dict):
                     continue
                 nickname, created = Nickname.objects.update_or_create(
@@ -968,7 +970,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated death reason "{key}"')
+                    logger.warning(f'Duplicated death reason "{key}"')
                 if not item or not isinstance(item, dict):
                     continue
                 death_reason, created = DeathReason.objects.update_or_create(
@@ -1002,7 +1004,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated dynasty "{key}"')
+                    logger.warning(f'Duplicated dynasty "{key}"')
                 if not item or not isinstance(item, dict):
                     continue
                 dynasty, created = Dynasty.objects.update_or_create(
@@ -1030,7 +1032,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated house "{key}"')
+                    logger.warning(f'Duplicated house "{key}"')
                 if not item or not isinstance(item, dict):
                     continue
                 house, created = House.objects.update_or_create(
@@ -1065,7 +1067,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated character "{key}"')
+                    logger.warning(f'Duplicated character "{key}"')
                 if not item or not isinstance(item, dict):
                     continue
                 item = {k: v for k, v in item.items() if not regex_date.fullmatch(k)}
@@ -1135,7 +1137,7 @@ class Command(BaseCommand):
                     if date := regex_date.fullmatch(date) and convert_date(date, key):
                         if isinstance(subitem, list):
                             subitem = {k: v for i in subitem for k, v in i.items() if isinstance(i, dict)}
-                            logger.warning(f'Potential duplicated character history "{key}" at "{to_pdx_date(date)}"')
+                            logger.warning(f'Duplicated character history "{key}" at "{to_pdx_date(date)}"')
                         if not subitem:
                             continue
                         effect = subitem.get("effect", {})
@@ -1263,7 +1265,7 @@ class Command(BaseCommand):
                 for key, item in group.items():
                     if isinstance(item, list):
                         item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                        logger.warning(f'Potential duplicated law "{key}"')
+                        logger.warning(f'Duplicated law "{key}"')
                     if not item or not isinstance(item, dict):
                         continue
                     law, created = Law.objects.update_or_create(
@@ -1289,7 +1291,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list):
                     item = {k: v for d in item for k, v in d.items() if isinstance(d, dict)}
-                    logger.warning(f'Potential duplicated title "{key}"')
+                    logger.warning(f'Duplicated title "{key}"')
                 if not item or not isinstance(item, dict):
                     continue
                 title = get_object(Title, key)
@@ -1297,7 +1299,7 @@ class Command(BaseCommand):
                     if date := regex_date.fullmatch(date) and convert_date(date, key):
                         if isinstance(subitem, list):
                             subitem = {k: v for i in subitem for k, v in i.items() if isinstance(i, dict)}
-                            logger.warning(f'Potential duplicated title history "{key}" at "{to_pdx_date(date)}"')
+                            logger.warning(f'Duplicated title history "{key}" at "{to_pdx_date(date)}"')
                         if not subitem:
                             continue
                         liege, is_independent = None, (subitem.get("liege") == 0) or None
