@@ -186,33 +186,7 @@ class Command(BaseCommand):
                 return item.get("@result") or None
             return item
 
-        if not reset and os.path.exists("_all_locales.json"):
-            with open("_all_locales.json") as file:
-                all_locales = json.load(file)
-        else:
-            start_date = datetime.datetime.now()
-            all_locales = {}
-            current_locales = parse_all_locales(base_path)
-            all_locales.update(current_locales)
-            if mod_path:
-                current_locales = parse_all_locales(mod_path)
-                all_locales.update(current_locales)
-            for key, value in current_locales.items():
-                localization, created = Localization.objects.import_update_or_create(
-                    key=key,
-                    language="en",
-                    defaults=dict(
-                        text=value,
-                    ),
-                )
-                keep_object(Localization, localization)
-            with open("_all_locales.json", "w") as file:
-                json.dump(all_locales, file, indent=4, sort_keys=True)
-            with open("_all_locales.json") as file:
-                all_locales = json.load(file)
-            total_time = (datetime.datetime.now() - start_date).total_seconds()
-            logger.info(f"Parsing locales in {total_time:0.2f}s")
-
+        # Parsing
         if not reset and os.path.exists("_all_data.json"):
             with open("_all_data.json") as file:
                 all_data = json.load(file)
@@ -242,6 +216,34 @@ class Command(BaseCommand):
                 json.dump(variables, file, indent=4, sort_keys=True)
             total_time = (datetime.datetime.now() - start_date).total_seconds()
             logger.info(f"Parsing files in {total_time:0.2f}s")
+
+        # Localization
+        if not reset and os.path.exists("_all_locales.json"):
+            with open("_all_locales.json") as file:
+                all_locales = json.load(file)
+        else:
+            start_date = datetime.datetime.now()
+            all_locales = {}
+            current_locales = parse_all_locales(base_path)
+            all_locales.update(current_locales)
+            if mod_path:
+                current_locales = parse_all_locales(mod_path)
+                all_locales.update(current_locales)
+            for key, value in current_locales.items():
+                localization, created = Localization.objects.import_update_or_create(
+                    key=key,
+                    language="en",
+                    defaults=dict(
+                        text=value,
+                    ),
+                )
+                keep_object(Localization, localization)
+            with open("_all_locales.json", "w") as file:
+                json.dump(all_locales, file, indent=4, sort_keys=True)
+            with open("_all_locales.json") as file:
+                all_locales = json.load(file)
+            total_time = (datetime.datetime.now() - start_date).total_seconds()
+            logger.info(f"Parsing locales in {total_time:0.2f}s")
 
         # Ethos
         count, start_date = 0, datetime.datetime.now()
