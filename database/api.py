@@ -36,5 +36,6 @@ namespace = "database-api"
 app_name = "database"
 urlpatterns = [
     path("parse/", parse, name="parse"),
+    path("revert/", revert, name="revert"),
 ] + router.urls
 urls = (urlpatterns, namespace, app_name)
