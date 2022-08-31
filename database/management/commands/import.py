@@ -113,6 +113,78 @@ class Command(BaseCommand):
 
     def handle(self, base_path, mod_path, save=False, unused=False, reset=False, purge=False, *args, **options):
         global_start = datetime.datetime.now()
+        all_objects, all_stats, all_missings, all_duplicates = {}, {}, {}, {}
+
+        def mark_as_done(model, count, date):
+            total_time = (datetime.datetime.now() - date).total_seconds()
+            all_stats[model._meta.object_name] = {"count": count, "time": total_time}
+            with open("_all_stats.json", "w") as file:
+                json.dump(all_stats, file, indent=4, sort_keys=True)
+            logger.info(f"{count} {model._meta.verbose_name_plural} in {total_time:0.2f}s")
+
+        def get_object(model, key):
+            if not key or str(key) == "none":
+                return None
+            model_name, verbose_name = model._meta.object_name, model._meta.verbose_name
+            if isinstance(key, list):
+                logger.warning(f"Multiple keys {key} provided for {verbose_name}")
+                key = key[-1]
+            pk_field = model._meta.get_field("id")
+            key = pk_field.to_python(key)
+            subobjects = all_objects.setdefault(model, {})
+            if key in subobjects:
+                return subobjects[key]
+            name = (
+                get_locale(key)
+                or get_locale(f"{key}_name")
+                or get_locale(f"{model_name}_{key}")
+                or get_locale(f"{model_name}_{key}_name")
+            )
+            description = (
+                get_locale(f"{key}_desc")
+                or get_locale(f"{key}_flavor")
+                or get_locale(f"{model_name}_{key}_desc")
+                or get_locale(f"{model_name}_{key}_flavor")
+            )
+            obj, created = model.objects.get_or_create(
+                id=key,
+                defaults=dict(
+                    name=name,
+                    description=description,
+                    exists=False,
+                ),
+            )
+            if created:
+                missings = all_missings.setdefault(model._meta.object_name, [])
+                missings.append(key)
+                missings.sort()
+                logger.warning(f'Unknown {verbose_name} created for "{key}"')
+            subobjects[key] = obj
+            return obj
+
+        def keep_object(model, object):
+            objects = all_objects.setdefault(model, {})
+            if object.id in objects:
+                all_duplicates.setdefault(model._meta.object_name, []).append(object.keys)
+                logger.warning(f'Duplicated {model._meta.verbose_name} "{object.keys}" in different files')
+            objects[object.pk] = object
+            missings = all_missings.setdefault(model._meta.object_name, [])
+            if key in missings:
+                missings.remove(key)
+
+        def get_locale(key, keep=False):
+            if isinstance(key, list):
+                logger.warning(f"Multiple keys {key} requested for locale")
+                key = key[-1]
+            locale = all_locales.get(key, key if keep else "")
+            for key, sublocale in regex_sublocale.findall(locale):
+                locale = locale.replace(key, all_locales.get(sublocale, key if keep else ""))
+            return locale
+
+        def get_value(item):
+            if isinstance(item, dict) and "@type" in item:
+                return item.get("@result") or None
+            return item
 
         if not reset and os.path.exists("_all_locales.json"):
             with open("_all_locales.json") as file:
@@ -126,13 +198,14 @@ class Command(BaseCommand):
                 current_locales = parse_all_locales(mod_path)
                 all_locales.update(current_locales)
             for key, value in current_locales.items():
-                Localization.objects.import_update_or_create(
+                localization, created = Localization.objects.import_update_or_create(
                     key=key,
                     language="en",
                     defaults=dict(
                         text=value,
                     ),
                 )
+                keep_object(Localization, localization)
             with open("_all_locales.json", "w") as file:
                 json.dump(all_locales, file, indent=4, sort_keys=True)
             with open("_all_locales.json") as file:
@@ -170,81 +243,6 @@ class Command(BaseCommand):
             total_time = (datetime.datetime.now() - start_date).total_seconds()
             logger.info(f"Parsing files in {total_time:0.2f}s")
 
-        all_objects, all_stats, all_missings = {}, {}, {}
-
-        def mark_as_done(model, count, date):
-            total_time = (datetime.datetime.now() - date).total_seconds()
-            all_stats[model._meta.model_name] = {"count": count, "time": total_time}
-            with open("_all_stats.json", "w") as file:
-                json.dump(all_stats, file, indent=4, sort_keys=True)
-            logger.info(f"{count} {model._meta.verbose_name_plural} in {total_time:0.2f}s")
-
-        def get_object(model, key):
-            if not key or str(key) == "none":
-                return None
-            model_name, verbose_name = model._meta.model_name, model._meta.verbose_name
-            if isinstance(key, list):
-                logger.warning(f"Multiple keys {key} provided for {verbose_name}")
-                key = key[-1]
-            pk_field = model._meta.get_field("id")
-            key = pk_field.to_python(key)
-            subobjects = all_objects.setdefault(model, {})
-            if key in subobjects:
-                return subobjects[key]
-            name = (
-                get_locale(key)
-                or get_locale(f"{key}_name")
-                or get_locale(f"{model_name}_{key}")
-                or get_locale(f"{model_name}_{key}_name")
-            )
-            description = (
-                get_locale(f"{key}_desc")
-                or get_locale(f"{key}_flavor")
-                or get_locale(f"{model_name}_{key}_desc")
-                or get_locale(f"{model_name}_{key}_flavor")
-            )
-            if len(key) > 64 or len(name) > 127:
-                logger.error(f'Unable to create {verbose_name} for "{key}" because ID and/or name is too long')
-                return None
-            obj, created = model.objects.get_or_create(
-                id=key,
-                defaults=dict(
-                    name=name,
-                    description=description,
-                    exists=False,
-                ),
-            )
-            if created:
-                missings = all_missings.setdefault(model._meta.model_name, [])
-                missings.append(key)
-                missings.sort()
-                logger.warning(f'Unknown {verbose_name} created for "{key}"')
-            subobjects[key] = obj
-            return obj
-
-        def keep_object(model, object):
-            objects = all_objects.setdefault(model, {})
-            if object.id in objects:
-                logger.warning(f'Duplicated {model._meta.verbose_name} "{object.keys}" in different files')
-            objects[object.pk] = object
-            missings = all_missings.setdefault(model._meta.model_name, [])
-            if key in missings:
-                missings.remove(key)
-
-        def get_locale(key, keep=False):
-            if isinstance(key, list):
-                logger.warning(f"Multiple keys {key} requested for locale")
-                key = key[-1]
-            locale = all_locales.get(key, key if keep else "")
-            for key, sublocale in regex_sublocale.findall(locale):
-                locale = locale.replace(key, all_locales.get(sublocale, key if keep else ""))
-            return locale
-
-        def get_value(item):
-            if isinstance(item, dict) and "@type" in item:
-                return item.get("@result") or None
-            return item
-
         # Ethos
         count, start_date = 0, datetime.datetime.now()
         for file, subdata in all_data.items():
@@ -279,6 +277,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated heritage "{key}"')
+                    all_duplicates.setdefault(Heritage._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for heritage "{key}": "{item}"')
@@ -305,6 +304,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated language "{key}"')
+                    all_duplicates.setdefault(Language._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for language "{key}": "{item}"')
@@ -330,6 +330,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated martial custom "{key}"')
+                    all_duplicates.setdefault(MartialCustom._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for martial custom "{key}": "{item}"')
@@ -356,6 +357,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated name list "{key}"')
+                    all_duplicates.setdefault(NameList._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for name list "{key}": "{item}"')
@@ -381,6 +383,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated tradition "{key}"')
+                    all_duplicates.setdefault(Tradition._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for tradition "{key}": "{item}"')
@@ -408,6 +411,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated era "{key}"')
+                    all_duplicates.setdefault(Era._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for era "{key}": "{item}"')
@@ -434,7 +438,8 @@ class Command(BaseCommand):
                 continue
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
-                    logger.warning(f'Duplicated era "{key}"')
+                    logger.warning(f'Duplicated innovation "{key}"')
+                    all_duplicates.setdefault(Innovation._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for era "{key}": "{item}"')
@@ -463,6 +468,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated ethnicity "{key}"')
+                    all_duplicates.setdefault(Ethnicity._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for ethnicity "{key}": "{item}"')
@@ -490,6 +496,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated culture "{key}"')
+                    all_duplicates.setdefault(Culture._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for culture "{key}": "{item}"')
@@ -546,10 +553,10 @@ class Command(BaseCommand):
                 for date, item in subdata.items():
                     if date := regex_date.fullmatch(date) and convert_date(date, key):
                         if isinstance(item, list):
+                            pdx_date = to_pdx_date(date)
+                            logger.warning(f'Duplicated {history_model._meta.verbose_name} "{key}" for "{pdx_date}"')
+                            all_duplicates.setdefault(history_model._meta.object_name, []).append((key, pdx_date))
                             item = {k: v for d in item for k, v in d.items()}
-                            logger.warning(
-                                f'Duplicated {history_model._meta.verbose_name} "{key}" for "{to_pdx_date(date)}"'
-                            )
                         if not isinstance(item, dict):
                             continue
                         history, created = history_model.objects.update_or_create(
@@ -579,6 +586,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated trait "{key}"')
+                    all_duplicates.setdefault(Trait._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for trait "{key}": "{item}"')
@@ -670,6 +678,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated building "{key}"')
+                    all_duplicates.setdefault(Building._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for building "{key}": "{item}"')
@@ -716,6 +725,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated holding "{key}"')
+                    all_duplicates.setdefault(Holding._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for holding "{key}": "{item}"')
@@ -748,6 +758,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated terrain "{key}"')
+                    all_duplicates.setdefault(Terrain._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for terrain "{key}": "{item}"')
@@ -784,6 +795,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated men-at-arms "{key}"')
+                    all_duplicates.setdefault(MenAtArms._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for men-at-arms "{key}": "{item}"')
@@ -853,6 +865,7 @@ class Command(BaseCommand):
                 for key, item in group.items():
                     if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                         logger.warning(f'Duplicated doctrine "{key}"')
+                        all_duplicates.setdefault(Doctrine._meta.object_name, []).append(key)
                         item = {k: v for d in item for k, v in d.items()}
                     if not isinstance(item, dict) or not ("doctrine" in key or "tenet" in key):
                         logger.debug(f'Unexpected data for doctrine "{key}": "{item}"')
@@ -906,6 +919,7 @@ class Command(BaseCommand):
                 for key, item in group.get("faiths", {}).items():
                     if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                         logger.warning(f'Duplicated religion "{key}"')
+                        all_duplicates.setdefault(Religion._meta.object_name, []).append(key)
                         item = {k: v for d in item for k, v in d.items()}
                     if not isinstance(item, dict):
                         logger.debug(f'Unexpected data for religion "{key}": "{item}"')
@@ -969,6 +983,7 @@ class Command(BaseCommand):
                     continue
                 if isinstance(item, list):
                     logger.warning(f'Duplicated province "{key}"')
+                    all_duplicates.setdefault(Province._meta.object_name, []).append(key)
                     if all(isinstance(i, dict) for i in item):
                         item = {k: v for d in item for k, v in d.items()}
                     else:
@@ -1038,8 +1053,10 @@ class Command(BaseCommand):
             for date, subitem in item.items():
                 if date := regex_date.fullmatch(date) and convert_date(date, key):
                     if isinstance(subitem, list):
+                        pdx_date = to_pdx_date(date)
+                        logger.warning(f'Duplicated province history "{key}" for "{pdx_date}"')
+                        all_duplicates.setdefault(ProvinceHistory._meta.object_name, []).append((key, pdx_date))
                         subitem = {k: v for d in subitem for k, v in d.items()}
-                        logger.warning(f'Duplicated province history "{key}" for "{to_pdx_date(date)}"')
                     if not isinstance(subitem, dict):
                         continue
                     province = get_object(Province, key)
@@ -1106,6 +1123,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated holy site "{key}"')
+                    all_duplicates.setdefault(HolySite._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for holy site "{key}": "{item}"')
@@ -1132,10 +1150,8 @@ class Command(BaseCommand):
                     continue
                 for key, item in group.get("faiths", {}).items():
                     if isinstance(item, list) and all(isinstance(i, dict) for i in item):
-                        logger.warning(f'Duplicated faith "{key}"')
                         item = {k: v for d in item for k, v in d.items()}
                     if not isinstance(item, dict):
-                        logger.debug(f'Unexpected data for faith "{key}": "{item}"')
                         continue
                     religion = get_object(Religion, key)
                     if religion.wip:
@@ -1157,6 +1173,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated nickname "{key}"')
+                    all_duplicates.setdefault(Nickname._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for nickname "{key}": "{item}"')
@@ -1184,6 +1201,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated death reason "{key}"')
+                    all_duplicates.setdefault(DeathReason._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for death reason "{key}": "{item}"')
@@ -1219,6 +1237,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated dynasty "{key}"')
+                    all_duplicates.setdefault(Dynasty._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for dynasty "{key}": "{item}"')
@@ -1248,6 +1267,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated house "{key}"')
+                    all_duplicates.setdefault(House._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for house "{key}": "{item}"')
@@ -1284,6 +1304,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated character "{key}"')
+                    all_duplicates.setdefault(Character._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for character "{key}": "{item}"')
@@ -1360,8 +1381,10 @@ class Command(BaseCommand):
                 for date, subitem in item.items():
                     if date := regex_date.fullmatch(date) and convert_date(date, key):
                         if isinstance(subitem, list):
+                            pdx_date = to_pdx_date(date)
+                            logger.warning(f'Duplicated character history "{key}" for "{pdx_date}"')
+                            all_duplicates.setdefault(CharacterHistory._meta.object_name, []).append((key, pdx_date))
                             subitem = {k: v for i in subitem for k, v in i.items() if isinstance(i, dict)}
-                            logger.warning(f'Duplicated character history "{key}" for "{to_pdx_date(date)}"')
                         if not subitem:
                             continue
                         effect = subitem.get("effect", {})
@@ -1489,6 +1512,7 @@ class Command(BaseCommand):
                 for key, item in group.items():
                     if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                         logger.warning(f'Duplicated law "{key}"')
+                        all_duplicates.setdefault(Law._meta.object_name, []).append(key)
                         item = {k: v for d in item for k, v in d.items()}
                     if not isinstance(item, dict):
                         logger.debug(f'Unexpected data for law "{key}": "{item}"')
@@ -1516,6 +1540,7 @@ class Command(BaseCommand):
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated title "{key}"')
+                    all_duplicates.setdefault(Title._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for title "{key}": "{item}"')
@@ -1526,8 +1551,10 @@ class Command(BaseCommand):
                 for date, subitem in item.items():
                     if date := regex_date.fullmatch(date) and convert_date(date, key):
                         if isinstance(subitem, list):
+                            pdx_date = to_pdx_date(date)
+                            logger.warning(f'Duplicated title history "{key}" for "{pdx_date}"')
+                            all_duplicates.setdefault(TitleHistory._meta.object_name, []).append((key, pdx_date))
                             subitem = {k: v for i in subitem for k, v in i.items() if isinstance(i, dict)}
-                            logger.warning(f'Duplicated title history "{key}" for "{to_pdx_date(date)}"')
                         if not subitem:
                             continue
                         liege, is_independent = None, (subitem.get("liege") == 0) or None
@@ -1570,5 +1597,7 @@ class Command(BaseCommand):
 
         with open("_all_missings.json", "w") as file:
             json.dump(all_missings, file, indent=4, sort_keys=True)
+        with open("_all_duplicates.json", "w") as file:
+            json.dump(all_duplicates, file, indent=4, sort_keys=True)
         total_time = (datetime.datetime.now() - global_start).total_seconds()
         logger.info(f"Importing data in {total_time:0.2f}s")
