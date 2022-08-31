@@ -29,6 +29,7 @@ from database.models import (
     Innovation,
     Language,
     Law,
+    Localization,
     MartialCustom,
     MenAtArms,
     NameList,
@@ -90,6 +91,7 @@ class BaseAdmin(EntityAdmin):
                 "fields": (
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -98,8 +100,13 @@ class BaseAdmin(EntityAdmin):
     list_display = (
         "name",
         "exists",
+        "wip",
     )
-    list_filter = ("exists",)
+    list_filter = (
+        "exists",
+        "wip",
+        "current_user",
+    )
     ordering = ("id",)
     search_fields = (
         "id",
@@ -184,7 +191,10 @@ class HeritageHistoryAdmin(BaseAdmin):
         "date",
         "join_era_link",
     )
-    list_filter = ("date",)
+    list_filter = (
+        "date",
+        "current_user",
+    )
     search_fields = (
         "heritage__id",
         "heritage__name",
@@ -254,6 +264,7 @@ class TraditionAdmin(BaseAdmin):
                 "fields": (
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -263,6 +274,7 @@ class TraditionAdmin(BaseAdmin):
         "name",
         "category",
         "exists",
+        "wip",
     )
     search_fields = (
         "id",
@@ -298,6 +310,7 @@ class EraAdmin(BaseAdmin):
                 "fields": (
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -307,6 +320,7 @@ class EraAdmin(BaseAdmin):
         "name",
         "year",
         "exists",
+        "wip",
     )
 
 
@@ -332,6 +346,7 @@ class InnovationAdmin(BaseAdmin):
                 "fields": (
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -342,10 +357,13 @@ class InnovationAdmin(BaseAdmin):
         "group",
         "era_link",
         "exists",
+        "wip",
     )
     list_filter = (
         "exists",
+        "wip",
         "group",
+        "current_user",
     )
     search_fields = (
         "id",
@@ -433,6 +451,7 @@ class CultureAdmin(BaseAdmin):
                 "fields": (
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -445,6 +464,7 @@ class CultureAdmin(BaseAdmin):
         "language_link",
         "martial_custom_link",
         "exists",
+        "wip",
     )
     search_fields = (
         "id",
@@ -575,7 +595,10 @@ class CultureHistoryAdmin(BaseAdmin):
         "date",
         "join_era_link",
     )
-    list_filter = ("date",)
+    list_filter = (
+        "date",
+        "current_user",
+    )
     search_fields = (
         "culture__id",
         "culture__name",
@@ -700,6 +723,7 @@ class TraitAdmin(BaseAdmin):
                 "fields": (
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -710,9 +734,11 @@ class TraitAdmin(BaseAdmin):
         "group_link",
         "cost",
         "exists",
+        "wip",
     )
     list_filter = (
         "exists",
+        "wip",
         "is_group",
         "is_good",
         "is_genetic",
@@ -725,6 +751,7 @@ class TraitAdmin(BaseAdmin):
         "can_have_children",
         "can_inherit",
         "can_not_marry",
+        "current_user",
     )
     search_fields = (
         "id",
@@ -784,6 +811,7 @@ class BuildingAdmin(BaseAdmin):
                 "fields": (
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -796,10 +824,13 @@ class BuildingAdmin(BaseAdmin):
         "construction_time",
         "cost_gold",
         "exists",
+        "wip",
     )
     list_filter = (
         "exists",
+        "wip",
         "type",
+        "current_user",
     )
     search_fields = (
         "id",
@@ -850,6 +881,7 @@ class HoldingAdmin(BaseAdmin):
                 "fields": (
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -859,6 +891,7 @@ class HoldingAdmin(BaseAdmin):
         "name",
         "primary_building",
         "exists",
+        "wip",
     )
     search_fields = (
         "id",
@@ -921,6 +954,7 @@ class TerrainAdmin(BaseAdmin):
                 "fields": (
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -996,6 +1030,7 @@ class MenAtArmsAdmin(BaseAdmin):
                 "fields": (
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -1007,10 +1042,13 @@ class MenAtArmsAdmin(BaseAdmin):
         "buy_cost",
         "stack",
         "exists",
+        "wip",
     )
     list_filter = (
         "exists",
+        "wip",
         "type",
+        "current_user",
     )
     search_fields = (
         "id",
@@ -1145,6 +1183,7 @@ class DoctrineAdmin(BaseAdmin):
                 "fields": (
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -1155,8 +1194,13 @@ class DoctrineAdmin(BaseAdmin):
         "group",
         "multiple",
         "exists",
+        "wip",
     )
-    list_filter = ("exists",)
+    list_filter = (
+        "exists",
+        "wip",
+        "current_user",
+    )
     search_fields = (
         "id",
         "name",
@@ -1258,6 +1302,7 @@ class ReligionAdmin(BaseAdmin):
                 "fields": (
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -1268,6 +1313,7 @@ class ReligionAdmin(BaseAdmin):
         "group",
         "religious_head",
         "exists",
+        "wip",
     )
     search_fields = (
         "id",
@@ -1424,6 +1470,7 @@ class ProvinceAdmin(BaseAdmin):
                 "fields": (
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -1436,10 +1483,13 @@ class ProvinceAdmin(BaseAdmin):
         "culture_link",
         "religion_link",
         "exists",
+        "wip",
     )
     list_filter = (
         "exists",
+        "wip",
         "holding",
+        "current_user",
     )
     search_fields = (
         "id",
@@ -1527,7 +1577,10 @@ class ProvinceHistoryAdmin(EntityAdmin):
         "province_link",
         "date",
     )
-    list_filter = ("date",)
+    list_filter = (
+        "date",
+        "current_user",
+    )
     search_fields = (
         "province__id",
         "province__name",
@@ -1668,6 +1721,7 @@ class TitleAdmin(BaseAdmin):
                 "fields": (
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -1679,10 +1733,13 @@ class TitleAdmin(BaseAdmin):
         "de_jure_liege_link",
         "capital_link",
         "exists",
+        "wip",
     )
     list_filter = (
         "exists",
+        "wip",
         "tier",
+        "current_user",
     )
     search_fields = (
         "id",
@@ -1763,7 +1820,10 @@ class TitleHistoryAdmin(EntityAdmin):
         "date",
         "holder_link",
     )
-    list_filter = ("date",)
+    list_filter = (
+        "date",
+        "current_user",
+    )
     search_fields = (
         "title__id",
         "title__name",
@@ -1828,6 +1888,7 @@ class HolySiteAdmin(BaseAdmin):
                 "fields": (
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -1838,8 +1899,13 @@ class HolySiteAdmin(BaseAdmin):
         "county_link",
         "barony_link",
         "exists",
+        "wip",
     )
-    list_filter = ("exists",)
+    list_filter = (
+        "exists",
+        "wip",
+        "current_user",
+    )
     search_fields = (
         "id",
         "name",
@@ -1900,6 +1966,7 @@ class NicknameAdmin(BaseAdmin):
                 "fields": (
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -1910,11 +1977,14 @@ class NicknameAdmin(BaseAdmin):
         "is_bad",
         "is_prefix",
         "exists",
+        "wip",
     )
     list_filter = (
         "exists",
+        "wip",
         "is_bad",
         "is_prefix",
+        "current_user",
     )
 
 
@@ -1949,6 +2019,7 @@ class DeathReasonAdmin(BaseAdmin):
                 "fields": (
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -1960,12 +2031,15 @@ class DeathReasonAdmin(BaseAdmin):
         "is_natural",
         "is_public_knowledge",
         "exists",
+        "wip",
     )
     list_filter = (
         "exists",
+        "wip",
         "is_default",
         "is_natural",
         "is_public_knowledge",
+        "current_user",
     )
 
 
@@ -2001,6 +2075,7 @@ class DynastyAdmin(BaseAdmin):
                     "coa_data",
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -2010,8 +2085,13 @@ class DynastyAdmin(BaseAdmin):
         "full_name",
         "culture_link",
         "exists",
+        "wip",
     )
-    list_filter = ("exists",)
+    list_filter = (
+        "exists",
+        "wip",
+        "current_user",
+    )
     search_fields = (
         "id",
         "name",
@@ -2070,6 +2150,7 @@ class HouseAdmin(BaseAdmin):
                     "coa_data",
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -2079,8 +2160,13 @@ class HouseAdmin(BaseAdmin):
         "full_name",
         "dynasty_link",
         "exists",
+        "wip",
     )
-    list_filter = ("exists",)
+    list_filter = (
+        "exists",
+        "wip",
+        "current_user",
+    )
     search_fields = (
         "id",
         "name",
@@ -2364,6 +2450,7 @@ class CharacterAdmin(BaseAdmin):
                     "dna_data",
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -2378,11 +2465,14 @@ class CharacterAdmin(BaseAdmin):
         "father_link",
         "mother_link",
         "exists",
+        "wip",
     )
     list_filter = (
         "exists",
+        "wip",
         "gender",
         "sexuality",
+        "current_user",
     )
     search_fields = (
         "id",
@@ -2551,6 +2641,7 @@ class CharacterHistoryAdmin(EntityAdmin):
     list_filter = (
         "event",
         "date",
+        "current_user",
     )
     search_fields = (
         "character__id",
@@ -2629,6 +2720,7 @@ class LawAdmin(BaseAdmin):
                 "fields": (
                     "raw_data",
                     "exists",
+                    "wip",
                 ),
                 "classes": ("collapse",),
             },
@@ -2638,8 +2730,26 @@ class LawAdmin(BaseAdmin):
         "name",
         "group",
         "exists",
+        "wip",
     )
     list_filter = (
         "exists",
+        "wip",
         "group",
+        "current_user",
     )
+
+
+@admin.register(Localization)
+class LocalizationAdmin(EntityAdmin):
+    list_display = (
+        "key",
+        "language",
+        "wip",
+    )
+    list_filter = ("wip",)
+    search_fields = (
+        "key",
+        "text",
+    )
+    ordering = ("key",)

@@ -1,11 +1,16 @@
+import logging
+
 from common.fields import JsonField
-from common.models import CommonModel, Entity
+from common.models import CommonModel, Entity, EntityQuerySet
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Q
+from django.db.models.utils import resolve_callables
 
 from database.ckparser import parse_text
+
+logger = logging.getLogger(__name__)
 
 
 def to_pdx_date(date):
@@ -19,12 +24,31 @@ class User(AbstractUser, Entity):
     _ignore_log = ("date_joined", "last_login", "password")
 
 
+class BaseModelQuerySet(EntityQuerySet):
+    def import_update_or_create(self, defaults=None, **kwargs):
+        defaults = defaults or {}
+        self._for_write = True
+        with transaction.atomic(using=self.db):
+            obj, created = self.select_for_update().get_or_create(defaults, **kwargs)
+            if created:
+                return obj, created
+            if not getattr(obj, "wip", False):
+                for k, v in resolve_callables(defaults):
+                    setattr(obj, k, v)
+                obj.save(using=self.db)
+            else:
+                logger.info(f"Ignored {obj._meta.verbose_name} ({obj.keys}) due to work in progress")
+        return obj, False
+
+
 class BaseModel(Entity):
     id = models.CharField(max_length=64, primary_key=True, editable=True)
     name = models.CharField(max_length=128, blank=True)
     description = models.TextField(blank=True)
     raw_data = JsonField(blank=True, null=True)
     exists = models.BooleanField(default=True)
+    wip = models.BooleanField(default=False)
+    objects = BaseModelQuerySet.as_manager()
 
     _ignore_log = ("raw_data",)
 
@@ -1213,6 +1237,32 @@ class Counter(Entity):
         unique_together = ("men_at_arms", "type")
 
 
+class Localization(Entity):
+    key = models.CharField(max_length=128)
+    language = models.CharField(
+        max_length=2,
+        default="en",
+        choices=(
+            ("en", "English"),
+            ("fr", "French"),
+            ("de", "German"),
+            ("sp", "Spanish"),
+            ("ko", "Korean"),
+            ("ru", "Russian"),
+            ("zh", "Chinese"),
+        ),
+    )
+    text = models.TextField(blank=True)
+    wip = models.BooleanField(default=False)
+    objects = BaseModelQuerySet.as_manager()
+
+    def __str__(self):
+        return f"{self.key} ({self.get_language_display()}"
+
+    class Meta:
+        unique_together = ("key", "language")
+
+
 MODELS = (
     Character,
     CharacterHistory,
@@ -1250,7 +1300,8 @@ MODELS = (
     MenAtArms,
     TerrainModifier,
     Counter,
+    Localization,
 )
 M2M_MODELS = [getattr(model, field.name).through for model in MODELS for field in model._meta.many_to_many]
 
-__all__ = ["to_pdx_date", "User", *(model.__name__ for model in MODELS)]
+__all__ = ["User", *(model.__name__ for model in MODELS)]

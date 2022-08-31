@@ -10,7 +10,46 @@ import re
 from django.core.management import BaseCommand
 
 from database.ckparser import parse_all_files, parse_all_locales, parse_file, variables
-from database.models import *
+from database.models import (
+    Building,
+    Character,
+    CharacterHistory,
+    Counter,
+    Culture,
+    CultureEthnicity,
+    CultureHistory,
+    DeathReason,
+    Doctrine,
+    DoctrineTrait,
+    Dynasty,
+    Era,
+    Ethnicity,
+    Ethos,
+    Heritage,
+    HeritageHistory,
+    Holding,
+    HolySite,
+    House,
+    Innovation,
+    Language,
+    Law,
+    Localization,
+    MartialCustom,
+    MenAtArms,
+    NameList,
+    Nickname,
+    Province,
+    ProvinceHistory,
+    Religion,
+    ReligionTrait,
+    Terrain,
+    TerrainModifier,
+    Title,
+    TitleHistory,
+    Tradition,
+    Trait,
+    to_pdx_date,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,9 +119,20 @@ class Command(BaseCommand):
                 all_locales = json.load(file)
         else:
             start_date = datetime.datetime.now()
-            all_locales = parse_all_locales(base_path)
+            all_locales = {}
+            current_locales = parse_all_locales(base_path)
+            all_locales.update(current_locales)
             if mod_path:
-                all_locales.update(parse_all_locales(mod_path))
+                current_locales = parse_all_locales(mod_path)
+                all_locales.update(current_locales)
+            for key, value in current_locales.items():
+                Localization.objects.import_update_or_create(
+                    key=key,
+                    language="en",
+                    defaults=dict(
+                        text=value,
+                    ),
+                )
             with open("_all_locales.json", "w") as file:
                 json.dump(all_locales, file, indent=4, sort_keys=True)
             with open("_all_locales.json") as file:
@@ -176,7 +226,7 @@ class Command(BaseCommand):
             objects = all_objects.setdefault(model, {})
             if object.id in objects:
                 logger.warning(f'Duplicated {model._meta.verbose_name} "{object.keys}" in different files')
-            objects[object.keys] = object
+            objects[object.pk] = object
             missings = all_missings.setdefault(model._meta.model_name, [])
             if key in missings:
                 missings.remove(key)
@@ -207,7 +257,7 @@ class Command(BaseCommand):
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for ethos "{key}": "{item}"')
                     continue
-                ethos, created = Ethos.objects.update_or_create(
+                ethos, created = Ethos.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
@@ -233,7 +283,7 @@ class Command(BaseCommand):
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for heritage "{key}": "{item}"')
                     continue
-                heritage, created = Heritage.objects.update_or_create(
+                heritage, created = Heritage.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
@@ -259,7 +309,7 @@ class Command(BaseCommand):
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for language "{key}": "{item}"')
                     continue
-                language, created = Language.objects.update_or_create(
+                language, created = Language.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
@@ -284,7 +334,7 @@ class Command(BaseCommand):
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for martial custom "{key}": "{item}"')
                     continue
-                martial_custom, created = MartialCustom.objects.update_or_create(
+                martial_custom, created = MartialCustom.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
@@ -310,7 +360,7 @@ class Command(BaseCommand):
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for name list "{key}": "{item}"')
                     continue
-                name_list, created = NameList.objects.update_or_create(
+                name_list, created = NameList.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
@@ -335,7 +385,7 @@ class Command(BaseCommand):
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for tradition "{key}": "{item}"')
                     continue
-                tradition, created = Tradition.objects.update_or_create(
+                tradition, created = Tradition.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
@@ -362,7 +412,7 @@ class Command(BaseCommand):
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for era "{key}": "{item}"')
                     continue
-                era, created = Era.objects.update_or_create(
+                era, created = Era.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
@@ -389,7 +439,7 @@ class Command(BaseCommand):
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for era "{key}": "{item}"')
                     continue
-                innovation, created = Innovation.objects.update_or_create(
+                innovation, created = Innovation.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
@@ -419,7 +469,7 @@ class Command(BaseCommand):
                     continue
                 if not item.get("template"):
                     continue
-                ethnicity, created = Ethnicity.objects.update_or_create(
+                ethnicity, created = Ethnicity.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
@@ -444,7 +494,7 @@ class Command(BaseCommand):
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for culture "{key}": "{item}"')
                     continue
-                culture, created = Culture.objects.update_or_create(
+                culture, created = Culture.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
@@ -460,6 +510,8 @@ class Command(BaseCommand):
                 keep_object(Culture, culture)
                 count += 1
                 culture.created = created
+                if culture.wip:
+                    continue
                 # Culture traditions
                 if traditions := item.get("traditions"):
                     traditions = traditions if isinstance(traditions, list) else [traditions]
@@ -489,7 +541,7 @@ class Command(BaseCommand):
                 (Culture, CultureHistory, "culture"),
             ):
                 instance = all_objects.setdefault(model, {}).get(key)
-                if not instance:
+                if not instance or instance.wip:
                     continue
                 for date, item in subdata.items():
                     if date := regex_date.fullmatch(date) and convert_date(date, key):
@@ -535,7 +587,7 @@ class Command(BaseCommand):
                 if group_key := item.get("group"):
                     group = all_objects.setdefault(Trait, {}).get(group_key)
                     if not group:
-                        group, _ = Trait.objects.update_or_create(
+                        group, _ = Trait.objects.import_update_or_create(
                             id=group_key,
                             name=get_locale(f"trait_{group_key}"),
                             description=get_locale(f"trait_{group_key}_desc"),
@@ -543,7 +595,7 @@ class Command(BaseCommand):
                             exists=True,
                         )
                         keep_object(Trait, group)
-                trait, created = Trait.objects.update_or_create(
+                trait, created = Trait.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(f"trait_{key}"),
@@ -604,6 +656,8 @@ class Command(BaseCommand):
                     continue
                 if opposites := item.get("opposites"):
                     trait = get_object(Trait, key)
+                    if trait.wip:
+                        continue
                     opposites = opposites if isinstance(opposites, list) else [opposites]
                     trait.opposites.set([get_object(Trait, key) for key in sorted(opposites)])
         mark_as_done(Trait, count, start_date)
@@ -620,7 +674,7 @@ class Command(BaseCommand):
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for building "{key}": "{item}"')
                     continue
-                building, created = Building.objects.update_or_create(
+                building, created = Building.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(f"building_{key}"),
@@ -647,6 +701,8 @@ class Command(BaseCommand):
                 if not isinstance(item, dict) or not item.get("next_building"):
                     continue
                 building = get_object(Building, key)
+                if building.wip:
+                    continue
                 building.next_building = get_object(Building, item["next_building"])
                 if building.modified:
                     building.save()
@@ -664,7 +720,7 @@ class Command(BaseCommand):
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for holding "{key}": "{item}"')
                     continue
-                holding, created = Holding.objects.update_or_create(
+                holding, created = Holding.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
@@ -676,6 +732,8 @@ class Command(BaseCommand):
                 keep_object(Holding, holding)
                 count += 1
                 holding.created = created
+                if holding.wip:
+                    continue
                 # Holding buildings
                 if buildings := item.get("buildings"):
                     buildings = buildings if isinstance(buildings, list) else [buildings]
@@ -694,7 +752,7 @@ class Command(BaseCommand):
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for terrain "{key}": "{item}"')
                     continue
-                terrain, created = Terrain.objects.update_or_create(
+                terrain, created = Terrain.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_terrain"),
@@ -730,7 +788,7 @@ class Command(BaseCommand):
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for men-at-arms "{key}": "{item}"')
                     continue
-                men_at_arms, created = MenAtArms.objects.update_or_create(
+                men_at_arms, created = MenAtArms.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
@@ -753,6 +811,8 @@ class Command(BaseCommand):
                 keep_object(MenAtArms, men_at_arms)
                 count += 1
                 men_at_arms.created = created
+                if men_at_arms.wip:
+                    continue
                 # Terrain modifiers
                 if modifiers := item.get("terrain_bonus"):
                     for terrain, modifiers in modifiers.items():
@@ -802,7 +862,7 @@ class Command(BaseCommand):
                     doctrine_name = get_locale(key) or get_locale(f"{key}_name")
                     if group_name and doctrine_name:
                         doctrine_name = f"{group_name}: {doctrine_name}"
-                    doctrine, created = Doctrine.objects.update_or_create(
+                    doctrine, created = Doctrine.objects.import_update_or_create(
                         id=key,
                         defaults=dict(
                             name=doctrine_name,
@@ -816,6 +876,8 @@ class Command(BaseCommand):
                     keep_object(Doctrine, doctrine)
                     count += 1
                     doctrine.created = created
+                    if doctrine.wip:
+                        continue
                     # Doctrine traits
                     if traits := item.get("traits"):
                         for trait_type, values in traits.items():
@@ -848,7 +910,7 @@ class Command(BaseCommand):
                     if not isinstance(item, dict):
                         logger.debug(f'Unexpected data for religion "{key}": "{item}"')
                         continue
-                    religion, created = Religion.objects.update_or_create(
+                    religion, created = Religion.objects.import_update_or_create(
                         id=key,
                         defaults=dict(
                             name=get_locale(key) or get_locale(f"{key}_name"),
@@ -863,6 +925,8 @@ class Command(BaseCommand):
                     keep_object(Religion, religion)
                     count += 1
                     religion.created = created
+                    if religion.wip:
+                        continue
                     # Religion doctrines
                     doctrines = group_doctrines.copy()
                     for doctrine in item.get("doctrine") or ():
@@ -948,7 +1012,7 @@ class Command(BaseCommand):
                     title_name = get_locale(key) or get_locale(f"{key}_name")
                     if title_prefix and title_name:
                         title_name = f"{title_prefix} {title_name}"
-                    province, created = Province.objects.update_or_create(
+                    province, created = Province.objects.import_update_or_create(
                         id=province_id,
                         defaults=dict(
                             name=title_name,
@@ -978,8 +1042,11 @@ class Command(BaseCommand):
                         logger.warning(f'Duplicated province history "{key}" for "{to_pdx_date(date)}"')
                     if not isinstance(subitem, dict):
                         continue
+                    province = get_object(Province, key)
+                    if province.wip:
+                        continue
                     province_history, created = ProvinceHistory.objects.update_or_create(
-                        province_id=key,
+                        province=province,
                         date=date,
                         defaults=dict(
                             holding=get_object(Holding, subitem.get("holding")),
@@ -1005,7 +1072,7 @@ class Command(BaseCommand):
                 continue
             item = {k: v for k, v in item.items() if not regex_date.fullmatch(k)}
             for key, item, liege_key in walk_titles(subdata):
-                title, created = Title.objects.update_or_create(
+                title, created = Title.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
@@ -1023,6 +1090,8 @@ class Command(BaseCommand):
                 title.created = created
             for key, item, liege_key in walk_titles(subdata):
                 title = get_object(Title, key)
+                if title.wip:
+                    continue
                 title.de_jure_liege = get_object(Title, liege_key)
                 title.capital = get_object(Title, item.get("capital"))
                 if title.modified:
@@ -1041,7 +1110,7 @@ class Command(BaseCommand):
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for holy site "{key}": "{item}"')
                     continue
-                holy_site, created = HolySite.objects.update_or_create(
+                holy_site, created = HolySite.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
@@ -1069,6 +1138,8 @@ class Command(BaseCommand):
                         logger.debug(f'Unexpected data for faith "{key}": "{item}"')
                         continue
                     religion = get_object(Religion, key)
+                    if religion.wip:
+                        continue
                     if holy_sites := item.get("holy_site"):
                         holy_sites = holy_sites if isinstance(holy_sites, list) else [holy_sites]
                         religion.holy_sites.set([get_object(HolySite, holy_site) for holy_site in sorted(holy_sites)])
@@ -1090,7 +1161,7 @@ class Command(BaseCommand):
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for nickname "{key}": "{item}"')
                     continue
-                nickname, created = Nickname.objects.update_or_create(
+                nickname, created = Nickname.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
@@ -1117,7 +1188,7 @@ class Command(BaseCommand):
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for death reason "{key}": "{item}"')
                     continue
-                death_reason, created = DeathReason.objects.update_or_create(
+                death_reason, created = DeathReason.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
@@ -1152,7 +1223,7 @@ class Command(BaseCommand):
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for dynasty "{key}": "{item}"')
                     continue
-                dynasty, created = Dynasty.objects.update_or_create(
+                dynasty, created = Dynasty.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(item.get("name")),
@@ -1181,7 +1252,7 @@ class Command(BaseCommand):
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for house "{key}": "{item}"')
                     continue
-                house, created = House.objects.update_or_create(
+                house, created = House.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(item.get("name")),
@@ -1221,7 +1292,7 @@ class Command(BaseCommand):
                 house = get_object(House, item.get("dynasty_house"))
                 dynasty = get_object(Dynasty, item.get("dynasty"))
                 dynasty = dynasty or (house.dynasty if house else None)
-                character, created = Character.objects.update_or_create(
+                character, created = Character.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(item.get("name"), keep=True),
@@ -1247,12 +1318,14 @@ class Command(BaseCommand):
                         exists=True,
                     ),
                 )
-                if traits := item.get("trait"):
-                    traits = traits if isinstance(traits, list) else [traits]
-                    character.traits.set([get_object(Trait, trait) for trait in sorted(traits)])
                 keep_object(Character, character)
                 count += 1
                 character.created = created
+                if character.wip:
+                    continue
+                if traits := item.get("trait"):
+                    traits = traits if isinstance(traits, list) else [traits]
+                    character.traits.set([get_object(Trait, trait) for trait in sorted(traits)])
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("history/characters/"):
                 continue
@@ -1263,6 +1336,8 @@ class Command(BaseCommand):
                     continue
                 if "father" in item or "mother" in item:
                     character = get_object(Character, key)
+                    if character.wip:
+                        continue
                     character.father = get_object(Character, item.get("father"))
                     character.mother = get_object(Character, item.get("mother"))
                     if character.modified:
@@ -1280,6 +1355,8 @@ class Command(BaseCommand):
                 if not isinstance(item, dict):
                     continue
                 character = get_object(Character, key)
+                if character.wip:
+                    continue
                 for date, subitem in item.items():
                     if date := regex_date.fullmatch(date) and convert_date(date, key):
                         if isinstance(subitem, list):
@@ -1416,7 +1493,7 @@ class Command(BaseCommand):
                     if not isinstance(item, dict):
                         logger.debug(f'Unexpected data for law "{key}": "{item}"')
                         continue
-                    law, created = Law.objects.update_or_create(
+                    law, created = Law.objects.import_update_or_create(
                         id=key,
                         defaults=dict(
                             name=get_locale(key) or get_locale(f"{key}_name"),
@@ -1444,6 +1521,8 @@ class Command(BaseCommand):
                     logger.debug(f'Unexpected data for title "{key}": "{item}"')
                     continue
                 title = get_object(Title, key)
+                if title.wip:
+                    continue
                 for date, subitem in item.items():
                     if date := regex_date.fullmatch(date) and convert_date(date, key):
                         if isinstance(subitem, list):
