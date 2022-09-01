@@ -1257,7 +1257,7 @@ class Localization(Entity):
     objects = BaseModelQuerySet.as_manager()
 
     def __str__(self):
-        return f"{self.key} ({self.get_language_display()}"
+        return f"{self.key} ({self.get_language_display()})"
 
     class Meta:
         unique_together = ("key", "language")
