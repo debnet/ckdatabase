@@ -1414,27 +1414,43 @@ class Command(BaseCommand):
                             employer = get_object(Character, subitem.get("employer"))
                             is_unemployed = False if employer else is_unemployed
                         if add_soulmate := effect.get("set_relation_soulmate"):
+                            if isinstance(add_soulmate, dict):
+                                add_soulmate = add_soulmate.get("target")
                             scope, add_soulmate = add_soulmate.split(":")
                             add_soulmate = get_object(Character, add_soulmate) if scope == "character" else None
                         if rem_soulmate := effect.get("remove_relation_soulmate"):
+                            if isinstance(rem_soulmate, dict):
+                                rem_soulmate = rem_soulmate.get("target")
                             scope, rem_soulmate = rem_soulmate.split(":")
                             rem_soulmate = get_object(Character, rem_soulmate) if scope == "character" else None
                         if add_best_friend := effect.get("set_relation_best_friend"):
+                            if isinstance(add_best_friend, dict):
+                                add_best_friend = add_best_friend.get("target")
                             scope, add_best_friend = add_best_friend.split(":")
                             add_best_friend = get_object(Character, add_best_friend) if scope == "character" else None
                         if rem_best_friend := effect.get("remove_relation_best_friend"):
+                            if isinstance(rem_best_friend, dict):
+                                rem_best_friend = rem_best_friend.get("target")
                             scope, rem_best_friend = rem_best_friend.split(":")
                             rem_best_friend = get_object(Character, rem_best_friend) if scope == "character" else None
                         if add_nemesis := effect.get("set_relation_nemesis"):
+                            if isinstance(add_nemesis, dict):
+                                add_nemesis = add_nemesis.get("target")
                             scope, add_nemesis = add_nemesis.split(":")
                             add_nemesis = get_object(Character, add_nemesis) if scope == "character" else None
                         if rem_nemesis := effect.get("remove_relation_nemesis"):
+                            if isinstance(rem_nemesis, dict):
+                                rem_nemesis = rem_nemesis.get("target")
                             scope, rem_nemesis = rem_nemesis.split(":")
                             rem_nemesis = get_object(Character, rem_nemesis) if scope == "character" else None
                         if add_guardian := effect.get("set_relation_guardian"):
+                            if isinstance(add_guardian, dict):
+                                add_guardian = add_guardian.get("target")
                             scope, add_guardian = add_guardian.split(":")
                             add_guardian = get_object(Character, add_guardian) if scope == "character" else None
                         if rem_guardian := effect.get("remove_relation_guardian"):
+                            if isinstance(rem_guardian, dict):
+                                rem_guardian = rem_guardian.get("target")
                             scope, rem_guardian = rem_guardian.split(":")
                             rem_guardian = get_object(Character, rem_guardian) if scope == "character" else None
                         history, created = CharacterHistory.objects.update_or_create(
@@ -1487,13 +1503,16 @@ class Command(BaseCommand):
                             ("remove_relation_rival", history.remove_rivals),
                         )
                         for relation, field in relations_m2m:
-                            if characters := effect.get(relation):
-                                characters = characters if isinstance(characters, list) else [characters]
-                                characters = (character.split(":") for character in characters)
+                            if targets := effect.get(relation):
+                                values = []
+                                for target in targets if isinstance(targets, list) else [targets]:
+                                    if isinstance(target, dict):
+                                        target = target.get("target")
+                                    values.append(target.split(":"))
                                 field.set(
                                     [
                                         get_object(Character, character)
-                                        for scope, character in sorted(characters)
+                                        for scope, target in sorted(values)
                                         if scope == "character"
                                     ]
                                 )
