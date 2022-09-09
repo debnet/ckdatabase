@@ -926,8 +926,7 @@ class Title(BaseModel):
         ),
     )
     prefix = models.CharField(max_length=16, blank=True)
-    color1 = models.CharField(max_length=8, blank=True)
-    color2 = models.CharField(max_length=8, blank=True)
+    color = models.CharField(max_length=8, blank=True)
     de_jure_liege = models.ForeignKey(
         "self",
         blank=True,

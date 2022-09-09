@@ -1706,8 +1706,7 @@ class TitleAdmin(BaseAdmin):
             {
                 "fields": (
                     "tier",
-                    "color1",
-                    "color2",
+                    "color",
                     "province",
                     "de_jure_liege",
                     "capital",
