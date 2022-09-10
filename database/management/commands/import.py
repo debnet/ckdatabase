@@ -1511,7 +1511,7 @@ class Command(BaseCommand):
                                     values.append(target.split(":"))
                                 field.set(
                                     [
-                                        get_object(Character, character)
+                                        get_object(Character, target)
                                         for scope, target in sorted(values)
                                         if scope == "character"
                                     ]
