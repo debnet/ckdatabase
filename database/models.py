@@ -467,7 +467,7 @@ class CharacterHistory(Entity, BaseCharacter):
 
     @property
     def keys(self):
-        return self.character_id, to_pdx_date(self.date)
+        return "{}:{}".format(self.character_id, to_pdx_date(self.date))
 
     def __str__(self):
         return f"{self.character} - {to_pdx_date(self.date)}"
@@ -616,7 +616,7 @@ class CultureEthnicity(Entity):
 
     @property
     def keys(self):
-        return self.culture_id, self.ethnicity_id
+        return "{}:{}".format(self.culture_id, self.ethnicity_id)
 
     def __str__(self):
         return f"{self.culture} - {self.ethnicity}"
@@ -716,7 +716,7 @@ class HeritageHistory(CultureOrHeritageHistory):
 
     @property
     def keys(self):
-        return self.heritage_id, to_pdx_date(self.date)
+        return "{}:{}".format(self.heritage_id, to_pdx_date(self.date))
 
     def __str__(self):
         return f"{self.heritage} - {to_pdx_date(self.date)}"
@@ -735,7 +735,7 @@ class CultureHistory(CultureOrHeritageHistory):
 
     @property
     def keys(self):
-        return self.culture_id, to_pdx_date(self.date)
+        return "{}:{}".format(self.culture_id, to_pdx_date(self.date))
 
     def __str__(self):
         return f"{self.culture} - {to_pdx_date(self.date)}"
@@ -788,7 +788,7 @@ class ReligionTrait(Entity):
 
     @property
     def keys(self):
-        return self.religion_id, self.trait_id
+        return "{}:{}".format(self.religion_id, self.trait_id)
 
     def __str__(self):
         return f"{self.religion} - {self.trait}"
@@ -839,7 +839,7 @@ class DoctrineTrait(Entity):
 
     @property
     def keys(self):
-        return self.doctrine_id, self.trait_id
+        return "{}:{}".format(self.doctrine_id, self.trait_id)
 
     def __str__(self):
         return f"{self.doctrine} - {self.trait}"
@@ -998,7 +998,7 @@ class TitleHistory(Entity):
 
     @property
     def keys(self):
-        return self.title_id, to_pdx_date(self.date)
+        return "{}:{}".format(self.title_id, to_pdx_date(self.date))
 
     def __str__(self):
         return f"{self.title} - {to_pdx_date(self.date)}"
@@ -1108,7 +1108,7 @@ class ProvinceHistory(Entity):
 
     @property
     def keys(self):
-        return self.province_id, to_pdx_date(self.date)
+        return "{}:{}".format(self.province_id, to_pdx_date(self.date))
 
     def __str__(self):
         return f"{self.province} - {to_pdx_date(self.date)}"
@@ -1207,7 +1207,7 @@ class TerrainModifier(Entity):
 
     @property
     def keys(self):
-        return self.men_at_arms_id, self.terrain_id
+        return "{}:{}".format(self.men_at_arms_id, self.terrain_id)
 
     def __str__(self):
         return f"{self.men_at_arms} - {self.terrain}"
@@ -1227,7 +1227,7 @@ class Counter(Entity):
 
     @property
     def keys(self):
-        return self.men_at_arms_id, self.type
+        return "{}:{}".format(self.men_at_arms_id, self.type)
 
     def __str__(self):
         return f"{self.men_at_arms} - {self.get_type_display()}"
