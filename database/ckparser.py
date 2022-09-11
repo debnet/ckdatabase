@@ -41,11 +41,12 @@ variables = {}
 
 
 # Regex to find and replace quoted string
-regex_string = re.compile(r"\"[^(\"\n)]*\"")
+regex_string = re.compile(r"\"[^\"\n]*\"")
+regex_string_multiline = re.compile(r"\"[^\"]*\"", re.MULTILINE)
 # Regex to remove comments in files
 regex_comment = re.compile(r"##*(?P<comment>.*)\s*$", re.MULTILINE)
 # Regex for fixing blocks with no equal sign
-regex_block = re.compile(r"^([^\s\{]+)\s*\{\s*$", re.MULTILINE)
+regex_block = re.compile(r"^([^\s\{\=]+)\s*\{\s*$", re.MULTILINE)
 # Regex to remove "list" prefix
 regex_list = re.compile(r"\s*=\s*list\s*([\{\"\|])", re.MULTILINE)
 # Regex for color blocks (color = [rgb|hsv] { x y z })
@@ -97,15 +98,19 @@ def parse_text(text, return_text_on_error=False, filename=None):
     nodes = [("", root)]
     local_variables = {}
     # Cleaning document
-    strings = {}
+    strings, index = {}, 0
     for index, match in enumerate(regex_string.finditer(text)):
-        strings[index] = repl = match.group(0)
-        text = text.replace(repl, f"|{index}|", 1)
+        strings[index] = match.group(0)
+        text = text.replace(match.group(0), f"|{index}|", 1)
     text = regex_comment.sub("", text)
-    text = regex_list.sub("|list = \g<1>", text)
-    text = regex_block.sub("\g<1> = {", text)
+    for index, match in enumerate(regex_string_multiline.finditer(text), start=index + 1):
+        strings[index] = match.group(0).replace("\n", " ").strip()
+        text = text.replace(match.group(0), f"|{index}|", 1)
+    text = regex_list.sub("|list=\g<1>", text)
+    text = regex_list.sub("|list=\g<1>", text)
+    text = regex_block.sub("\g<1>={", text)
     text = text.replace("{", "\n{\n").replace("}", "\n}\n")
-    text = regex_color.sub("= {\n\g<1>", text)
+    text = regex_color.sub("={\n\g<1>", text)
     text = regex_inline.sub("\g<1>\n", text)
     text = regex_values.sub("=", text)
     text = regex_empty.sub("\n", text)
