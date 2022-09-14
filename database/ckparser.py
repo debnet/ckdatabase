@@ -1,11 +1,13 @@
 # coding: utf-8
+import argparse
 import ast
+import base64
 import datetime
 import json
 import logging
 import os
 import re
-import sys
+import zlib
 
 # Try to import chardet for encoding detection
 try:
@@ -16,16 +18,12 @@ except ImportError:
 
 # Logger (because logging is awesome)
 logger = logging.getLogger(__name__)
-# logger.setLevel(logging.DEBUG)
-# formatter = logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s")
-# console_handler = logging.StreamHandler()
-# console_handler.setLevel(logging.INFO)
-# console_handler.setFormatter(formatter)
-# logger.addHandler(console_handler)
-# file_handler = logging.FileHandler("parser.log")
-# file_handler.setLevel(logging.INFO)
-# file_handler.setFormatter(formatter)
-# logger.addHandler(file_handler)
+logger.setLevel(logging.DEBUG)
+formatter = logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s")
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
 
 
 # Boolean transformation
@@ -44,7 +42,7 @@ variables = {}
 regex_string = re.compile(r"\"[^\"\n]*\"")
 regex_string_multiline = re.compile(r"\"[^\"]*\"", re.MULTILINE)
 # Regex to remove comments in files
-regex_comment = re.compile(r"##*(?P<comment>.*)\s*$", re.MULTILINE)
+regex_comment = re.compile(r"##*(?P<comment>.*)$", re.MULTILINE)
 # Regex for fixing blocks with no equal sign
 regex_block = re.compile(r"^([^\s\{\=]+)\s*\{\s*$", re.MULTILINE)
 # Regex to remove "list" prefix
@@ -86,27 +84,41 @@ def read_file(path, encoding="utf_8_sig"):
         return file.read()
 
 
-def parse_text(text, return_text_on_error=False, filename=None):
+def encode_string(string):
+    str_bytes = zlib.compress(string.encode(), level=9)
+    return base64.urlsafe_b64encode(str_bytes).decode().replace("=", "$")
+
+
+def decode_string(string):
+    str_bytes = base64.urlsafe_b64decode(string.replace("$", "=").encode())
+    return zlib.decompress(str_bytes).decode()
+
+
+def parse_text(text, return_text_on_error=False, comments=False, filename=None):
     """
     Parse raw text
     :param text: Text to parse
     :param return_text_on_error: (default false) Return working text document if parsing fails
+    :param comments: (default false) Include comments?
     :param filename: (default none) Filename (only for debugging)
     :return: Parsed data as dictionary
     """
     root = {}
-    nodes = [("", root)]
     local_variables = {}
+    nodes = [("", root)]
     # Cleaning document
     strings, index = {}, 0
     for index, match in enumerate(regex_string.finditer(text)):
         strings[index] = match.group(0)
         text = text.replace(match.group(0), f"|{index}|", 1)
-    text = regex_comment.sub("", text)
+    if comments:
+        for index, match in enumerate(regex_comment.finditer(text)):
+            text = text.replace(match.group(0), f"\n&{index}={encode_string(match.group(0))}\n", 1)
+    else:
+        text = regex_comment.sub("", text)
     for index, match in enumerate(regex_string_multiline.finditer(text), start=index + 1):
         strings[index] = match.group(0).replace("\n", " ").strip()
         text = text.replace(match.group(0), f"|{index}|", 1)
-    text = regex_list.sub("|list=\g<1>", text)
     text = regex_list.sub("|list=\g<1>", text)
     text = regex_block.sub("\g<1>={", text)
     text = text.replace("{", "\n{\n").replace("}", "\n}\n")
@@ -237,6 +249,11 @@ def parse_text(text, return_text_on_error=False, filename=None):
                 if not isinstance(node, list):
                     _, prev = nodes[-2]
                     if node_name:
+                        if node and isinstance(node, dict):
+                            logger.warning(
+                                f"Value cannot be added to a complex structure (line {line_number}: {line_text})"
+                            )
+                            continue
                         prev[node_name] = node = []
                     elif isinstance(prev, list):
                         prev[-1] = node = []
@@ -272,28 +289,30 @@ def parse_text(text, return_text_on_error=False, filename=None):
     return root
 
 
-def parse_file(path, output_dir=None, encoding="utf_8_sig", base_dir=None, save=True):
+def parse_file(path, output_dir=None, encoding="utf_8_sig", base_dir=None, save=False, comments=False):
     """
     Parse file
     :param path: Path to file to parse
     :param output_dir: Directory where to save parsed file
     :param encoding: Encoding used to read file
     :param base_dir: Base directory (for debug)
-    :param save: (default false) Save parsed file in output_directory
+    :param save: (default false) Save parsed file in output directory
+    :param comments: Include comments?
     :return: Parsed data as dictionary or text if parsing fails
     """
     start_time = datetime.datetime.utcnow()
     if base_dir:
         base_dir = os.sep.join(base_dir.rstrip(os.sep).split(os.sep)[:-1]) + os.sep
         base_dir = os.path.dirname(path.replace(base_dir, ""))
-    if not base_dir:
-        base_dir = os.path.dirname(path).split(os.sep)[-1]
+    base_dir = base_dir or "."
+    # if not base_dir:
+    # base_dir = os.path.dirname(path).split(os.sep)[-1]
     text = read_file(path, encoding)
     if not text.strip():
         return None
     filename = os.path.join(base_dir, os.path.basename(path))
     logger.debug(f"Parsing {filename}")
-    data = parse_text(text, return_text_on_error=True, filename=filename)
+    data = parse_text(text, return_text_on_error=True, comments=comments, filename=filename)
     if save:
         filename, _ = os.path.splitext(os.path.basename(path))
         directory = os.path.join(output_dir or "output", *base_dir.split(os.sep))
@@ -311,14 +330,17 @@ def parse_file(path, output_dir=None, encoding="utf_8_sig", base_dir=None, save=
     return data
 
 
-def parse_all_files(path, output_dir=None, encoding="utf_8_sig", keep_data=False, save=True, variables_first=True):
+def parse_all_files(
+    path, output_dir=None, encoding="utf_8_sig", keep_data=False, save=False, comments=False, variables_first=True
+):
     """
     Parse all text files in a directory
     :param path: Path where to find files to parse
     :param output_dir: Directory where to save parsed files
     :param encoding: Encoding used to read files
     :param keep_data: (default false) Return parsed data of all files in a dictionary
-    :param save: Save every parsed data in output directory
+    :param save: (default false) Save every parsed data in output directory
+    :param comments: Include comments?
     :param variables_first: Try to parse variables first
     :return: Dictionary (key: file, value: parsed data if keep_data=True)
     """
@@ -333,7 +355,14 @@ def parse_all_files(path, output_dir=None, encoding="utf_8_sig", keep_data=False
                 if not filename.lower().endswith(".txt"):
                     continue
                 filepath = os.path.join(current_path, filename)
-                data = parse_file(filepath, output_dir=output_dir, encoding=encoding, base_dir=path, save=save)
+                data = parse_file(
+                    filepath,
+                    output_dir=output_dir,
+                    encoding=encoding,
+                    base_dir=path,
+                    save=save,
+                    comments=comments,
+                )
                 if isinstance(data, str):
                     errors.append(filepath)
                     continue
@@ -348,12 +377,13 @@ def parse_all_files(path, output_dir=None, encoding="utf_8_sig", keep_data=False
     return success
 
 
-def parse_all_locales(path, encoding="utf_8_sig", language="english"):
+def parse_all_locales(path, encoding="utf_8_sig", language="english", save=False):
     """
     Parse all locales strings
     :param path: Path where to find locale files
     :param encoding: Encoding for reading files
     :param language: Target language
+    :param save: (default false) save locales in file
     :return: Locales in dictionary
     """
     locales = {}
@@ -370,6 +400,9 @@ def parse_all_locales(path, encoding="utf_8_sig", language="english"):
                     if match := regex_locale.match(line):
                         key, value = match.groups()
                         locales[key] = value
+    if save:
+        with open("_locales.json", "w") as file:
+            json.dump(locales, file, indent=4, sort_keys=True)
     return locales
 
 
@@ -410,7 +443,7 @@ list_keys_rules = [
 ]
 
 
-def revert(obj, from_key=None, prev_key=None, depth=-1):
+def revert(obj, from_key=None, prev_key=None, depth=-1, sep=" " * 4):
     """
     /!\\ Work in progress /!\\
     Try to revert a dict-struct to Paradox format
@@ -418,24 +451,24 @@ def revert(obj, from_key=None, prev_key=None, depth=-1):
     :param from_key: (only used by recursion) Key of the parent section
     :param prev_key: (only used by recursion) Key of the great-parent section
     :param depth: (only used by recursion) Depth of the current section
+    :param sep: Line-start separator
     :return: Text
     """
     lines = []
-    sep = " " * 4
-    tab = sep * depth
+    tabs = sep * depth
     if isinstance(obj, dict):
-        if special := revert_special(obj, from_key):
-            lines.append(f"{tab}{special}")
+        if special := revert_special(obj, from_key, prev_key):
+            lines.append(f"{tabs}{special}")
         else:
             if from_key:
                 from_key = from_key.replace("|", " ")
-                lines.append(f"{tab}{from_key} = {{")
+                lines.append(f"{tabs}{from_key} = {{")
             elif depth > 0:
-                lines.append(f"{tab}{{")
+                lines.append(f"{tabs}{{")
             for key, value in obj.items():
                 lines.extend(revert(value, from_key=key, prev_key=from_key, depth=depth + 1))
             if from_key or depth > 0:
-                lines.append(f"{tab}}}")
+                lines.append(f"{tabs}}}")
     elif isinstance(obj, list):
         is_list = None
         # Only for colors
@@ -449,18 +482,21 @@ def revert(obj, from_key=None, prev_key=None, depth=-1):
         else:
             if from_key:
                 key = from_key.replace("|", " ")
-                lines.append(f"{tab}{key} = {{")
+                lines.append(f"{tabs}{key} = {{")
             else:
-                lines.append(f"{tab}{{")
+                lines.append(f"{tabs}{{")
             for value in obj:
                 lines.extend(revert(value, depth=depth + 1))
-            lines.append(f"{tab}}}")
+            lines.append(f"{tabs}}}")
     elif isinstance(obj, (int, float)) or obj:
         if from_key:
-            from_key = from_key.replace("|", " ")
-            lines.append(f"{tab}{from_key} = {revert_value(obj, from_key, prev_key)}")
+            if from_key.startswith("&"):
+                lines.append(f"{tabs}{decode_string(obj)}")
+            else:
+                from_key = from_key.replace("|", " ")
+                lines.append(f"{tabs}{from_key} = {revert_value(obj, from_key, prev_key)}")
         else:
-            lines.append(f"{tab}{revert_value(obj)}")
+            lines.append(f"{tabs}{revert_value(obj)}")
     if depth < 0:
         return "\n".join(lines)
     return lines
@@ -478,26 +514,60 @@ def revert_value(value, from_key=None, prev_key=None):
     if isinstance(value, bool):
         return "yes" if value else "no"
     elif isinstance(value, str):
-        if " " in value or (value.startswith("$") and value.endswith("$")) or from_key == "name":
+        if " " in value or (value.startswith("$") and value.endswith("$")):
             value = value.replace('"', '\\"')
             return f'"{value}"'
     return value
 
 
-def revert_special(obj, from_key=None):
+def revert_special(obj, from_key=None, prev_key=None):
     """
     /!\\ Work in progress /!\\
     Revert special values utility for revert function
     :param obj: Special object to revert
     :param from_key: Key of the parent section
+    :param prev_key: Key of the great-parent section
     :return: Reverted object
     """
     if "@operator" in obj:
         operator, value = obj["@operator"], obj["@value"]
-        return f"{from_key} {operator} {revert_value(value, from_key)}"
+        return f"{from_key} {operator} {revert_value(value, from_key, prev_key)}"
     elif "@type" in obj:
         value, result = obj["@value"], obj["@result"]
         return f"{from_key or value} = {value}"
+
+
+def revert_file(path, output_dir=None, encoding="utf_8_sig", base_dir=None, save=False):
+    """
+    Revert JSON file to Paradox format
+    :param path: Path to JSON file to revert
+    :param output_dir: Directory where to save reverted files
+    :param encoding: Encoding used to write files
+    :param base_dir: Base directory (for debug)
+    :param save: (default false) Save every reverted data in output directory
+    """
+    start_time = datetime.datetime.utcnow()
+    if base_dir:
+        base_dir = os.sep.join(base_dir.rstrip(os.sep).split(os.sep)[:-1]) + os.sep
+        base_dir = os.path.dirname(path.replace(base_dir, ""))
+    base_dir = base_dir or "."
+    # if not base_dir:
+    # base_dir = os.path.dirname(path).split(os.sep)[-1]
+    with open(path) as file:
+        data = json.load(file)
+    filename = os.path.join(base_dir, os.path.basename(path))
+    logger.debug(f"Reverting {filename}")
+    text = revert(data)
+    if save:
+        filename, _ = os.path.splitext(os.path.basename(path))
+        directory = os.path.join(output_dir or "output", *base_dir.split(os.sep))
+        os.makedirs(directory, exist_ok=True)
+        filename = os.path.join(directory, filename + ".txt")
+        with open(filename, "w", encoding=encoding) as file:
+            file.write(text)
+    total_time = (datetime.datetime.utcnow() - start_time).total_seconds()
+    logger.debug(f"Elapsed time: {total_time:0.3}s!")
+    return text
 
 
 def load_variables():
@@ -522,12 +592,41 @@ def save_variables():
 
 
 if __name__ == "__main__":
-    if 2 > len(sys.argv) > 4:
-        logger.info("Usage: python ckparser.py <directory or file> [<output directory>] [<encoding: utf_8_sig>]")
-        sys.exit(0)
-    load_variables()
-    if os.path.isdir(sys.argv[1]):
-        parse_all_files(*sys.argv[1:])
+    parser = argparse.ArgumentParser(
+        description="Parse data from Paradox files in JSON or revert JSON files to Paradox format"
+    )
+    parser.add_argument("path", type=str, help="path to a file or a directory to parse/revert")
+    parser.add_argument("--encoding", type=str, help="encoding for reading/writing files")
+    parser.add_argument("--output", type=str, help="output directory for parsing results")
+    parser.add_argument("--revert", action="store_true", help="revert JSON files?")
+    parser.add_argument("--comments", action="store_true", help="include comments?")
+    args = parser.parse_args()
+    console_handler.setLevel(logging.DEBUG)
+    file_handler = logging.FileHandler("ckparser.log")
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    if args.revert:
+        if os.path.isdir(args.path):
+            logger.error("Reverting many files is not implemented yet!")
+        else:
+            revert_file(args.path, encoding=args.encoding, output_dir=args.output, save=True)
     else:
-        parse_file(*sys.argv[1:], save=True)
-    save_variables()
+        load_variables()
+        if os.path.isdir(args.path):
+            parse_all_files(
+                args.path,
+                encoding=args.encoding,
+                output_dir=args.output,
+                comments=args.comments,
+                save=True,
+            )
+        else:
+            parse_file(
+                args.path,
+                encoding=args.encoding,
+                output_dir=args.output,
+                comments=args.comments,
+                save=True,
+            )
+        save_variables()

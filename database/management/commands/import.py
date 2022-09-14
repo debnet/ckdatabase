@@ -253,14 +253,13 @@ class Command(BaseCommand):
         # Ethos
         count, start_date = 0, datetime.datetime.now()
         for file, subdata in all_data.items():
-            if not subdata or not file.startswith("common/culture/pillars/") or "ethos" not in file:
+            if not subdata or not file.startswith("common/culture/pillars/"):
                 continue
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated ethos "{key}"')
                     item = {k: v for d in item for k, v in d.items()}
-                if not isinstance(item, dict):
-                    logger.debug(f'Unexpected data for ethos "{key}": "{item}"')
+                if not isinstance(item, dict) or item.get("type") != "ethos":
                     continue
                 ethos, created = Ethos.objects.import_update_or_create(
                     id=key,
@@ -279,15 +278,14 @@ class Command(BaseCommand):
         # Heritage
         count, start_date = 0, datetime.datetime.now()
         for file, subdata in all_data.items():
-            if not subdata or not file.startswith("common/culture/pillars/") or "heritage" not in file:
+            if not subdata or not file.startswith("common/culture/pillars/"):
                 continue
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated heritage "{key}"')
                     all_duplicates.setdefault(Heritage._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
-                if not isinstance(item, dict):
-                    logger.debug(f'Unexpected data for heritage "{key}": "{item}"')
+                if not isinstance(item, dict) or item.get("type") != "heritage":
                     continue
                 heritage, created = Heritage.objects.import_update_or_create(
                     id=key,
@@ -306,15 +304,14 @@ class Command(BaseCommand):
         # Language
         count, start_date = 0, datetime.datetime.now()
         for file, subdata in all_data.items():
-            if not subdata or not file.startswith("common/culture/pillars/") or "language" not in file:
+            if not subdata or not file.startswith("common/culture/pillars/"):
                 continue
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated language "{key}"')
                     all_duplicates.setdefault(Language._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
-                if not isinstance(item, dict):
-                    logger.debug(f'Unexpected data for language "{key}": "{item}"')
+                if not isinstance(item, dict) or item.get("type") != "language":
                     continue
                 language, created = Language.objects.import_update_or_create(
                     id=key,
@@ -332,15 +329,14 @@ class Command(BaseCommand):
         # Martial custom
         count, start_date = 0, datetime.datetime.now()
         for file, subdata in all_data.items():
-            if not subdata or not file.startswith("common/culture/pillars/") or "martial_custom" not in file:
+            if not subdata or not file.startswith("common/culture/pillars/"):
                 continue
             for key, item in subdata.items():
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated martial custom "{key}"')
                     all_duplicates.setdefault(MartialCustom._meta.object_name, []).append(key)
                     item = {k: v for d in item for k, v in d.items()}
-                if not isinstance(item, dict):
-                    logger.debug(f'Unexpected data for martial custom "{key}": "{item}"')
+                if not isinstance(item, dict) or item.get("type") != "martial_custom":
                     continue
                 martial_custom, created = MartialCustom.objects.import_update_or_create(
                     id=key,
