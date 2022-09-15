@@ -167,12 +167,12 @@ class Command(BaseCommand):
 
         def keep_object(model, object):
             objects = all_objects.setdefault(model, {})
-            if object.id in objects:
+            if object.keys in objects:
                 all_duplicates.setdefault(model._meta.object_name, []).append(object.keys)
                 logger.warning(f'Duplicated {model._meta.verbose_name} "{object.keys}" in different files')
-            objects[object.pk] = object
+            objects[object.keys] = object
             missings = all_missings.setdefault(model._meta.object_name, [])
-            if key in missings:
+            if object.keys in missings:
                 missings.remove(key)
 
         def get_locale(key, keep=False):
@@ -528,7 +528,7 @@ class Command(BaseCommand):
                 # Culture traditions
                 if traditions := item.get("traditions"):
                     traditions = traditions if isinstance(traditions, list) else [traditions]
-                    culture.traditions.set([get_object(Tradition, key) for key in sorted(traditions)])
+                    culture.traditions.set([get_object(Tradition, key) for key in traditions])
                 # Culture ethnicities
                 if item.get("ethnicities"):
                     for chance, keys in item.get("ethnicities").items():
@@ -579,7 +579,7 @@ class Command(BaseCommand):
                         if innovations := item.get("discover_innovation"):
                             innovations = innovations if isinstance(innovations, list) else [innovations]
                             history.discover_innovations.set(
-                                [get_object(Innovation, innovation) for innovation in sorted(innovations)]
+                                [get_object(Innovation, innovation) for innovation in innovations]
                             )
         mark_as_done(HeritageHistory, count_heritage, start_date)
         mark_as_done(CultureHistory, count_culture, start_date)
@@ -673,7 +673,7 @@ class Command(BaseCommand):
                     if trait.wip:
                         continue
                     opposites = opposites if isinstance(opposites, list) else [opposites]
-                    trait.opposites.set([get_object(Trait, key) for key in sorted(opposites)])
+                    trait.opposites.set([get_object(Trait, key) for key in opposites])
         mark_as_done(Trait, count, start_date)
 
         # Building
@@ -753,7 +753,7 @@ class Command(BaseCommand):
                 # Holding buildings
                 if buildings := item.get("buildings"):
                     buildings = buildings if isinstance(buildings, list) else [buildings]
-                    holding.buildings.set([get_object(Building, key) for key in sorted(buildings)])
+                    holding.buildings.set([get_object(Building, key) for key in buildings])
         mark_as_done(Holding, count, start_date)
 
         # Terrain
@@ -957,7 +957,7 @@ class Command(BaseCommand):
                             doctrines.add(doctrine)
                             break
                     if doctrines:
-                        religion.doctrines.set([get_object(Doctrine, doctrine) for doctrine in sorted(doctrines)])
+                        religion.doctrines.set([get_object(Doctrine, doctrine) for doctrine in doctrines])
                     # Religion traits
                     if traits := group.get("traits"):
                         for trait_type, values in traits.items():
@@ -975,7 +975,7 @@ class Command(BaseCommand):
                     # Religion men-at-arms
                     if men_at_arms := group.get("holy_order_maa"):
                         men_at_arms = men_at_arms if isinstance(men_at_arms, list) else [men_at_arms]
-                        religion.men_at_arms.set([get_object(MenAtArms, maa) for maa in sorted(men_at_arms)])
+                        religion.men_at_arms.set([get_object(MenAtArms, maa) for maa in men_at_arms])
         mark_as_done(Religion, count, start_date)
 
         # Province
@@ -1080,9 +1080,7 @@ class Command(BaseCommand):
                     )
                     if buildings := subitem.get("buildings"):
                         buildings = buildings if isinstance(buildings, list) else [buildings]
-                        province_history.buildings.set(
-                            [get_object(Building, building) for building in sorted(buildings)]
-                        )
+                        province_history.buildings.set([get_object(Building, building) for building in buildings])
                     keep_object(ProvinceHistory, province_history)
                     count += 1
                     province_history.created = created
@@ -1163,7 +1161,7 @@ class Command(BaseCommand):
                         continue
                     if holy_sites := item.get("holy_site"):
                         holy_sites = holy_sites if isinstance(holy_sites, list) else [holy_sites]
-                        religion.holy_sites.set([get_object(HolySite, holy_site) for holy_site in sorted(holy_sites)])
+                        religion.holy_sites.set([get_object(HolySite, holy_site) for holy_site in holy_sites])
                     if religious_head := item.get("religious_head"):
                         religion.religious_head = get_object(Title, religious_head)
                         if religion.modified:
@@ -1351,7 +1349,7 @@ class Command(BaseCommand):
                     continue
                 if traits := item.get("trait"):
                     traits = traits if isinstance(traits, list) else [traits]
-                    character.traits.set([get_object(Trait, trait) for trait in sorted(traits)])
+                    character.traits.set([get_object(Trait, trait) for trait in traits])
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("history/characters/"):
                 continue
@@ -1509,18 +1507,14 @@ class Command(BaseCommand):
                                         target = target.get("target")
                                     values.append(target.split(":"))
                                 field.set(
-                                    [
-                                        get_object(Character, target)
-                                        for scope, target in sorted(values)
-                                        if scope == "character"
-                                    ]
+                                    [get_object(Character, target) for scope, target in values if scope == "character"]
                                 )
                         if traits := subitem.get("trait"):
                             traits = traits if isinstance(traits, list) else [traits]
-                            history.traits_added.set([get_object(Trait, trait) for trait in sorted(traits)])
+                            history.traits_added.set([get_object(Trait, trait) for trait in traits])
                         if traits := subitem.get("remove_trait"):
                             traits = traits if isinstance(traits, list) else [traits]
-                            history.traits_removed.set([get_object(Trait, trait) for trait in sorted(traits)])
+                            history.traits_removed.set([get_object(Trait, trait) for trait in traits])
                 if character.modified:
                     character.save()
         mark_as_done(CharacterHistory, count, start_date)
@@ -1607,7 +1601,7 @@ class Command(BaseCommand):
                             succession_laws = (
                                 succession_laws if isinstance(succession_laws, list) else [succession_laws]
                             )
-                            history.succession_laws.set([get_object(Law, law) for law in sorted(succession_laws)])
+                            history.succession_laws.set([get_object(Law, law) for law in succession_laws])
         mark_as_done(TitleHistory, count, start_date)
 
         # Casus belli group
@@ -1670,7 +1664,9 @@ class Command(BaseCommand):
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("history/wars/"):
                 continue
-            for item in subdata:
+            wars = subdata.get("war")
+            wars = wars if isinstance(wars, list) else [wars]
+            for item in wars:
                 if not isinstance(item, dict):
                     continue
                 war, created = War.objects.import_update_or_create(
@@ -1687,11 +1683,11 @@ class Command(BaseCommand):
                 count += 1
                 war.created = created
                 if attackers := item.get("attackers"):
-                    war.attackers.set([get_object(Character, attacker) for attacker in sorted(attackers)])
+                    war.attackers.set([get_object(Character, attacker) for attacker in attackers])
                 if defenders := item.get("defenders"):
-                    war.defenders.set([get_object(Character, defender) for defender in sorted(defenders)])
+                    war.defenders.set([get_object(Character, defender) for defender in defenders])
                 if titles := item.get("targeted_titles"):
-                    war.targeted_titles.set([get_object(Title, title) for title in sorted(titles)])
+                    war.targeted_titles.set([get_object(Title, title) for title in titles])
         mark_as_done(War, count, start_date)
 
         # Mass cleaning
