@@ -85,13 +85,24 @@ def read_file(path, encoding="utf_8_sig"):
 
 
 def encode_string(string):
-    str_bytes = zlib.compress(string.encode(), level=9)
-    return base64.urlsafe_b64encode(str_bytes).decode().replace("=", "$")
+    string = string.lstrip("#")
+    if not string:
+        return ""
+    try:
+        str_bytes = zlib.compress(string.encode(), level=9)
+        return base64.urlsafe_b64encode(str_bytes).decode().replace("=", ".")
+    except:
+        return string
 
 
 def decode_string(string):
-    str_bytes = base64.urlsafe_b64decode(string.replace("$", "=").encode())
-    return zlib.decompress(str_bytes).decode()
+    if not string:
+        return ""
+    try:
+        str_bytes = base64.urlsafe_b64decode(string.strip("&").replace(".", "=").encode())
+        return zlib.decompress(str_bytes).decode()
+    except:
+        return string
 
 
 def parse_text(text, return_text_on_error=False, comments=False, filename=None):
@@ -113,7 +124,11 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
         text = text.replace(match.group(0), f"|{index}|", 1)
     if comments:
         for index, match in enumerate(regex_comment.finditer(text)):
-            text = text.replace(match.group(0), f"\n&{index}={encode_string(match.group(0))}\n", 1)
+            value = encode_string(match.group(0))
+            if value.strip():
+                text = text.replace(match.group(0), f"\n&{index}={value}\n", 1)
+            else:
+                text = text.replace(match.group(0), "", 1)
     else:
         text = regex_comment.sub("", text)
     for index, match in enumerate(regex_string_multiline.finditer(text), start=index + 1):
@@ -165,7 +180,7 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
                 elif value.lower() in booleans:
                     # Convert to boolean
                     value = booleans[value]
-                else:
+                elif value:
                     # Try to convert value to Python value
                     try:
                         value = ast.literal_eval(value)
@@ -187,12 +202,31 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
                             "@operator": operator,
                             "@value": value,
                         }
-                        if isinstance(value, str) and (value.startswith("@") or value in variables):
-                            node[key]["@value"] = {
-                                "@type": "variable",
-                                "@value": value,
-                                "@result": variables.get(value.lstrip("@")),
-                            }
+                        if isinstance(value, str):
+                            if value == "":
+                                node[key]["@value"] = item = {}
+                                nodes.append(("@", item))
+                            elif value.startswith("@[") and value.endswith("]"):
+                                formula = value.lstrip("@[").rstrip("]")
+                                for var_name, var_value in variables.items():
+                                    formula = re.sub(rf"\b{var_name}\b", str(var_value), formula)
+                                try:
+                                    result = eval(formula, None, variables)
+                                except:
+                                    result = None
+                                if isinstance(result, float):
+                                    result = round(result, 5)
+                                node[key]["@value"] = {
+                                    "@type": "formula",
+                                    "@value": value,
+                                    "@result": result,
+                                }
+                            elif value.startswith("@") or value in variables:
+                                node[key]["@value"] = {
+                                    "@type": "variable",
+                                    "@value": value,
+                                    "@result": variables.get(value.lstrip("@")),
+                                }
                     # If value is a formula
                     elif isinstance(value, str):
                         if value.startswith("@[") and value.endswith("]"):
@@ -229,6 +263,8 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
                                 if value and key.startswith("@"):
                                     variable_name = key.lstrip("@")
                                     variables[variable_name] = local_variables[variable_name] = value
+                        elif key.startswith("&") and isinstance(node, list):
+                            node.append(f"&{value}&")
                         else:
                             node[key] = value
                             if value and key.startswith("@"):
@@ -239,6 +275,9 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
                         if value and key.startswith("@"):
                             variable_name = key.lstrip("@")
                             variables[variable_name] = local_variables[variable_name] = value
+            # If line is opening bracket inside an operator
+            elif line_text == "{" and node_name == "@":
+                continue
             # If line is closing block
             elif line_text == "}":
                 # Return to previous node
@@ -250,11 +289,20 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
                     _, prev = nodes[-2]
                     if node_name:
                         if node and isinstance(node, dict):
-                            logger.warning(
-                                f"Value cannot be added to a complex structure (line {line_number}: {line_text})"
-                            )
-                            continue
-                        prev[node_name] = node = []
+                            (key, value), *_ = node.items()
+                            if key.startswith("&"):
+                                prev[node_name] = node = [f"&{value}&"]
+                            elif node_name == "on_actions":  # Only for on_actions...
+                                prev[node_name] = node = []
+                            else:
+                                logger.warning(
+                                    f"Single value cannot be added to a dictionary (line {line_number}: {line_text})"
+                                )
+                                if filename:
+                                    logger.warning(f"Filename: {filename}")
+                                continue
+                        else:
+                            prev[node_name] = node = []
                     elif isinstance(prev, list):
                         prev[-1] = node = []
                     nodes[-1] = (node_name, node)
@@ -285,6 +333,7 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
                 logger.warning(f"Filename: {filename}")
             logger.warning(f"Line {line_number}: {line_text}")
             logger.error(f"Parse error: {error}")
+            logger.debug("Exception:", exc_info=True)
             return text if return_text_on_error else None
     return root
 
@@ -458,7 +507,9 @@ def revert(obj, from_key=None, prev_key=None, depth=-1, sep=" " * 4):
     tabs = sep * depth
     if isinstance(obj, dict):
         if special := revert_special(obj, from_key, prev_key):
-            lines.append(f"{tabs}{special}")
+            special = special if isinstance(special, list) else [special]
+            for line in special:
+                lines.append(f"{tabs}{line}")
         else:
             if from_key:
                 from_key = from_key.replace("|", " ")
@@ -490,11 +541,13 @@ def revert(obj, from_key=None, prev_key=None, depth=-1, sep=" " * 4):
             lines.append(f"{tabs}}}")
     elif isinstance(obj, (int, float)) or obj:
         if from_key:
-            if from_key.startswith("&"):
-                lines.append(f"{tabs}{decode_string(obj)}")
+            if from_key.startswith("&") or (isinstance(obj, str) and obj.startswith("&") and obj.endswith("&")):
+                value = decode_string(obj)
+                lines.append(f"{tabs}#{value}")
             else:
                 from_key = from_key.replace("|", " ")
-                lines.append(f"{tabs}{from_key} = {revert_value(obj, from_key, prev_key)}")
+                value = revert_value(obj, from_key, prev_key)
+                lines.append(f"{tabs}{from_key} = {value}")
         else:
             lines.append(f"{tabs}{revert_value(obj)}")
     if depth < 0:
@@ -514,9 +567,14 @@ def revert_value(value, from_key=None, prev_key=None):
     if isinstance(value, bool):
         return "yes" if value else "no"
     elif isinstance(value, str):
-        if " " in value or (value.startswith("$") and value.endswith("$")):
+        if value.startswith("&") and value.endswith("&"):
+            value = decode_string(value)
+            return f"#{value}"
+        elif " " in value or (value.startswith("$") and value.endswith("$")):
             value = value.replace('"', '\\"')
             return f'"{value}"'
+    elif isinstance(value, dict):
+        value = revert(value, from_key=from_key, prev_key=prev_key, depth=0)
     return value
 
 
@@ -531,7 +589,12 @@ def revert_special(obj, from_key=None, prev_key=None):
     """
     if "@operator" in obj:
         operator, value = obj["@operator"], obj["@value"]
-        return f"{from_key} {operator} {revert_value(value, from_key, prev_key)}"
+        value = revert_value(value, from_key, prev_key)
+        if isinstance(value, list):
+            value[0] = value[0].replace("=", operator, 1)
+            return value
+        else:
+            return f"{from_key} {operator} {value}"
     elif "@type" in obj:
         value, result = obj["@value"], obj["@result"]
         return f"{from_key or value} = {value}"
@@ -600,8 +663,10 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str, help="output directory for parsing results")
     parser.add_argument("--revert", action="store_true", help="revert JSON files?")
     parser.add_argument("--comments", action="store_true", help="include comments?")
+    parser.add_argument("--debug", action="store_true", help="debug mode?")
     args = parser.parse_args()
-    console_handler.setLevel(logging.DEBUG)
+    if args.debug:
+        console_handler.setLevel(logging.DEBUG)
     file_handler = logging.FileHandler("ckparser.log")
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
