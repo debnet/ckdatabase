@@ -1255,6 +1255,7 @@ class Localization(Entity):
     wip = models.BooleanField(default=False)
     objects = BaseModelQuerySet.as_manager()
 
+    @property
     def keys(self):
         return f"{self.key}:{self.language}"
 

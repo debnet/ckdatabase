@@ -167,12 +167,12 @@ class Command(BaseCommand):
 
         def keep_object(model, object):
             objects = all_objects.setdefault(model, {})
-            if object.keys in objects:
+            if object.pk in objects:
                 all_duplicates.setdefault(model._meta.object_name, []).append(object.keys)
                 logger.warning(f'Duplicated {model._meta.verbose_name} "{object.keys}" in different files')
-            objects[object.keys] = object
+            objects[object.pk] = object
             missings = all_missings.setdefault(model._meta.object_name, [])
-            if object.keys in missings:
+            if object.pk in missings:
                 missings.remove(key)
 
         def get_locale(key, keep=False):
