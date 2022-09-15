@@ -1,13 +1,11 @@
 # coding: utf-8
 import argparse
 import ast
-import base64
 import datetime
 import json
 import logging
 import os
 import re
-import zlib
 
 # Try to import chardet for encoding detection
 try:
@@ -42,7 +40,7 @@ variables = {}
 regex_string = re.compile(r"\"[^\"\n]*\"")
 regex_string_multiline = re.compile(r"\"[^\"]*\"", re.MULTILINE)
 # Regex to remove comments in files
-regex_comment = re.compile(r"##*(?P<comment>.*)$", re.MULTILINE)
+regex_comment = re.compile(r"(?P<space>\s*)##*(?P<comment>.*)$", re.MULTILINE)
 # Regex for fixing blocks with no equal sign
 regex_block = re.compile(r"^([^\s\{\=]+)\s*\{\s*$", re.MULTILINE)
 # Regex to remove "list" prefix
@@ -50,11 +48,11 @@ regex_list = re.compile(r"\s*=\s*list\s*([\{\"\|])", re.MULTILINE)
 # Regex for color blocks (color = [rgb|hsv] { x y z })
 regex_color = re.compile(r"=\s*(?P<type>\w+)\s*{")
 # Regex to parse items with format key=value
-regex_inline = re.compile(r"([^\s]+\s*[!<=>]+\s*(((?![@\"])\[?[^\s]+\]?)|(\"[^\"]+\")|(@\[[^\]]+\]))|(@\w+))")
+regex_inline = re.compile(r"([^\s\"]+\s*[!<=>]+\s*(([^@\"]\[?[^\s]+\]?)|(\"[^\"]+\")|(@\[[^\]]+\]))|(@\w+))")
 # Regex to parse blocks with bracket below the key
 regex_values = re.compile(r"(=\s*\n+)|(\n+\s*=)")
 # Regex to parse lines with format key=value
-regex_line = re.compile(r"(?P<key>[^\s]+)\s*(?P<operator>[!<=>]+)\s*(list\s*)?(?P<value>.*)")
+regex_line = re.compile(r"\"?(?P<key>[^\s\"]+)\"?\s*(?P<operator>[!<=>]+)\s*(list\s*)?(?P<value>.*)")
 # Regex to parse independent items in a list
 regex_item = re.compile(r"(\"[^\"]+\"|[\d\.]+|[^\s]+)")
 # Regex to remove empty lines
@@ -84,27 +82,6 @@ def read_file(path, encoding="utf_8_sig"):
         return file.read()
 
 
-def encode_string(string):
-    string = string.lstrip("#")
-    if not string:
-        return ""
-    try:
-        str_bytes = zlib.compress(string.encode(), level=9)
-        return base64.urlsafe_b64encode(str_bytes).decode().replace("=", ".")
-    except:
-        return string
-
-
-def decode_string(string):
-    if not string:
-        return ""
-    try:
-        str_bytes = base64.urlsafe_b64decode(string.strip("&").replace(".", "=").encode())
-        return zlib.decompress(str_bytes).decode()
-    except:
-        return string
-
-
 def parse_text(text, return_text_on_error=False, comments=False, filename=None):
     """
     Parse raw text
@@ -123,12 +100,11 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
         strings[index] = match.group(0)
         text = text.replace(match.group(0), f"|{index}|", 1)
     if comments:
-        for index, match in enumerate(regex_comment.finditer(text)):
-            value = encode_string(match.group(0))
-            if value.strip():
-                text = text.replace(match.group(0), f"\n&{index}={value}\n", 1)
-            else:
-                text = text.replace(match.group(0), "", 1)
+        for index, match in enumerate(regex_comment.finditer(text), start=index + 1):
+            value, space = match.group("comment").replace('"', "'").rstrip(), match.group("space")
+            strings[index] = f'"{value}"'
+            repl = f"\n{space}&{index}=|{index}|\n" if value.strip() else ""
+            text = text.replace(match.group(0), repl, 1)
     else:
         text = regex_comment.sub("", text)
     for index, match in enumerate(regex_string_multiline.finditer(text), start=index + 1):
@@ -542,7 +518,7 @@ def revert(obj, from_key=None, prev_key=None, depth=-1, sep=" " * 4):
     elif isinstance(obj, (int, float)) or obj:
         if from_key:
             if from_key.startswith("&") or (isinstance(obj, str) and obj.startswith("&") and obj.endswith("&")):
-                value = decode_string(obj)
+                value = obj.strip("&")
                 lines.append(f"{tabs}#{value}")
             else:
                 from_key = from_key.replace("|", " ")
@@ -568,7 +544,6 @@ def revert_value(value, from_key=None, prev_key=None):
         return "yes" if value else "no"
     elif isinstance(value, str):
         if value.startswith("&") and value.endswith("&"):
-            value = decode_string(value)
             return f"#{value}"
         elif " " in value or (value.startswith("$") and value.endswith("$")):
             value = value.replace('"', '\\"')
