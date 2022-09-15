@@ -2850,7 +2850,7 @@ class WarAdmin(BaseAdmin):
                     "casus_belli",
                     "targeted_titles",
                     "attackers",
-                    "defender",
+                    "defenders",
                     "claimant",
                 ),
                 "classes": (),
@@ -2897,7 +2897,6 @@ class WarAdmin(BaseAdmin):
         "targeted_titles",
         "attackers",
         "defenders",
-        "defender",
         "claimant",
     )
 
