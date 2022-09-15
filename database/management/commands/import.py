@@ -12,6 +12,8 @@ from django.core.management import BaseCommand
 from database.ckparser import parse_all_files, parse_all_locales, parse_file, variables
 from database.models import (
     Building,
+    CasusBelli,
+    CasusBelliGroup,
     Character,
     CharacterHistory,
     Counter,
@@ -48,6 +50,7 @@ from database.models import (
     TitleHistory,
     Tradition,
     Trait,
+    War,
     to_pdx_date,
 )
 
@@ -1606,6 +1609,90 @@ class Command(BaseCommand):
                             )
                             history.succession_laws.set([get_object(Law, law) for law in sorted(succession_laws)])
         mark_as_done(TitleHistory, count, start_date)
+
+        # Casus belli group
+        count, start_date = 0, datetime.datetime.now()
+        for file, subdata in all_data.items():
+            if not subdata or not file.startswith("common/casus_belli_groups/"):
+                continue
+            for key, item in subdata.items():
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
+                    logger.warning(f'Duplicated casus belli group "{key}"')
+                    all_duplicates.setdefault(Heritage._meta.object_name, []).append(key)
+                    item = {k: v for d in item for k, v in d.items()}
+                if not isinstance(item, dict):
+                    continue
+                casus_belli_group, created = CasusBelliGroup.objects.import_update_or_create(
+                    id=key,
+                    defaults=dict(
+                        name=get_locale(key) or get_locale(f"{key}_name"),
+                        description=get_locale(f"{key}_desc"),
+                        raw_data=item,
+                        exists=True,
+                    ),
+                )
+                keep_object(CasusBelliGroup, casus_belli_group)
+                count += 1
+                casus_belli_group.created = created
+        mark_as_done(CasusBelliGroup, count, start_date)
+
+        # Casus belli
+        count, start_date = 0, datetime.datetime.now()
+        for file, subdata in all_data.items():
+            if not subdata or not file.startswith("common/casus_belli_types/"):
+                continue
+            for key, item in subdata.items():
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
+                    logger.warning(f'Duplicated casus belli "{key}"')
+                    all_duplicates.setdefault(Heritage._meta.object_name, []).append(key)
+                    item = {k: v for d in item for k, v in d.items()}
+                if not isinstance(item, dict):
+                    continue
+                casus_belli, created = CasusBelli.objects.import_update_or_create(
+                    id=key,
+                    defaults=dict(
+                        name=get_locale(key) or get_locale(f"{key}_name"),
+                        description=get_locale(item.get("war_name") or f"{key}_desc"),
+                        group=get_object(CasusBelliGroup, item.get("group")),
+                        target_titles=item.get("target_titles") or "",
+                        target_title_tier=item.get("target_title_tier") or "",
+                        raw_data=item,
+                        exists=True,
+                    ),
+                )
+                keep_object(CasusBelli, casus_belli)
+                count += 1
+                casus_belli.created = created
+        mark_as_done(CasusBelli, count, start_date)
+
+        # War
+        count, start_date = 0, datetime.datetime.now()
+        for file, subdata in all_data.items():
+            if not subdata or not file.startswith("history/wars/"):
+                continue
+            for item in subdata:
+                if not isinstance(item, dict):
+                    continue
+                war, created = War.objects.import_update_or_create(
+                    id=item.get("name"),
+                    defaults=dict(
+                        name=get_locale(item.get("name")),
+                        start_date=convert_date(item.get("start_date")),
+                        end_date=convert_date(item.get("end_date")),
+                        casus_belli=get_object(CasusBelli, item.get("casus_belli")),
+                        claimant=get_object(Character, item.get("claimant")),
+                    ),
+                )
+                keep_object(War, war)
+                count += 1
+                war.created = created
+                if attackers := item.get("attackers"):
+                    war.attackers.set([get_object(Character, attacker) for attacker in sorted(attackers)])
+                if defenders := item.get("defenders"):
+                    war.defenders.set([get_object(Character, defender) for defender in sorted(defenders)])
+                if titles := item.get("targeted_titles"):
+                    war.targeted_titles.set([get_object(Title, title) for title in sorted(titles)])
+        mark_as_done(War, count, start_date)
 
         # Mass cleaning
         all_deleted = collections.Counter()

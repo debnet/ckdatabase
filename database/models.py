@@ -784,7 +784,7 @@ class ReligionTrait(Entity):
         related_name="religions",
     )
     is_virtue = models.BooleanField(default=False)
-    piety = models.SmallIntegerField(blank=True, null=True)
+    piety = models.FloatField(blank=True, null=True)
 
     @property
     def keys(self):
@@ -1262,6 +1262,81 @@ class Localization(Entity):
         unique_together = ("key", "language")
 
 
+class CasusBelliGroup(BaseModel):
+    pass
+
+
+class CasusBelli(BaseModel):
+    group = models.ForeignKey(
+        "CasusBelliGroup",
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="casus_belli",
+    )
+    target_titles = models.CharField(
+        max_length=32,
+        blank=True,
+        choices=(
+            ("all", "All titles"),
+            ("claim", "Claimed titles"),
+            ("de_jure", "De jure titles"),
+            ("independence_domain", "Independence"),
+            ("neighbor_land", "Neighbor land"),
+            ("neighbor_land_or_water", "Neighbor land or coast"),
+            ("none", "None"),
+        ),
+    )
+    target_title_tier = models.CharField(
+        max_length=8,
+        blank=True,
+        choices=(
+            ("all", "All"),
+            ("county", "County"),
+            ("duchy", "Duchy"),
+            ("kingdom", "Kingdom"),
+            ("empire", "Empire"),
+        ),
+    )
+
+    class Meta:
+        verbose_name_plural = "casus belli"
+
+
+class War(BaseModel):
+    start_date = models.DateField(blank=True, null=True)
+    end_date = models.DateField(blank=True, null=True)
+    casus_belli = models.ForeignKey(
+        "CasusBelli",
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="wars",
+    )
+    targeted_titles = models.ManyToManyField(
+        "Title",
+        blank=True,
+        related_name="wars",
+    )
+    attackers = models.ManyToManyField(
+        "Character",
+        blank=True,
+        related_name="attackers",
+    )
+    defenders = models.ManyToManyField(
+        "Character",
+        blank=True,
+        related_name="defenders",
+    )
+    claimant = models.ForeignKey(
+        "Character",
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="claims",
+    )
+
+
 MODELS = (
     Character,
     CharacterHistory,
@@ -1300,6 +1375,9 @@ MODELS = (
     TerrainModifier,
     Counter,
     Localization,
+    CasusBelliGroup,
+    CasusBelli,
+    War,
 )
 M2M_MODELS = [getattr(model, field.name).through for model in MODELS for field in model._meta.many_to_many]
 

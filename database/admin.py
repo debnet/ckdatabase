@@ -8,6 +8,8 @@ from django.utils.safestring import mark_safe
 from database.ckparser import revert
 from database.models import (
     Building,
+    CasusBelli,
+    CasusBelliGroup,
     Character,
     CharacterHistory,
     Counter,
@@ -45,6 +47,7 @@ from database.models import (
     Tradition,
     Trait,
     User,
+    War,
 )
 
 admin.site.site_header = "Crusader Kings Database"
@@ -2752,3 +2755,162 @@ class LocalizationAdmin(EntityAdmin):
         "text",
     )
     ordering = ("key",)
+
+
+@admin.register(CasusBelliGroup)
+class CasusBelliGroup(BaseAdmin):
+    pass
+
+
+@admin.register(CasusBelli)
+class CasusBelli(BaseAdmin):
+    fieldsets = (
+        (
+            "General",
+            {
+                "fields": (
+                    "id",
+                    "name",
+                    "description",
+                ),
+                "classes": (),
+            },
+        ),
+        (
+            "Specific",
+            {
+                "fields": (
+                    "group",
+                    "target_titles",
+                    "target_title_tier",
+                ),
+                "classes": (),
+            },
+        ),
+        (
+            "Internal",
+            {
+                "fields": (
+                    "raw_data",
+                    "exists",
+                    "wip",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+    list_display = (
+        "name",
+        "group_link",
+        "target_titles",
+        "target_title_tier",
+        "exists",
+        "wip",
+    )
+    list_filter = (
+        "exists",
+        "wip",
+        "group",
+        "target_titles",
+        "target_title_tier",
+        "current_user",
+    )
+    autocomplete_fields = ("group",)
+
+    @admin.display(description="group", ordering="group__name")
+    def group_link(self, obj):
+        if obj.group:
+            url = reverse("admin:database_casusbelligroup_change", args=(obj.group.pk,))
+            return mark_safe(f'<a href="{url}">{obj.group}</a>')
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("group")
+
+
+class WarAdmin(BaseAdmin):
+    fieldsets = (
+        (
+            "General",
+            {
+                "fields": (
+                    "id",
+                    "name",
+                    "description",
+                ),
+                "classes": (),
+            },
+        ),
+        (
+            "Specific",
+            {
+                "fields": (
+                    "start_date",
+                    "end_date",
+                    "casus_belli",
+                    "targeted_titles",
+                    "attackers",
+                    "defender",
+                    "claimant",
+                ),
+                "classes": (),
+            },
+        ),
+        (
+            "Internal",
+            {
+                "fields": (
+                    "raw_data",
+                    "exists",
+                    "wip",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+    list_display = (
+        "name",
+        "start_date",
+        "end_date",
+        "casus_belli_link",
+        "claimant_link",
+        "exists",
+        "wip",
+    )
+    list_filter = (
+        "exists",
+        "wip",
+        "current_user",
+    )
+    search_fields = (
+        "casus_belli__id",
+        "casus_belli__name",
+        "claimant__id",
+        "claimant__name",
+    )
+    ordering = (
+        "start_date",
+        "end_date",
+    )
+    autocomplete_fields = (
+        "casus_belli",
+        "targeted_titles",
+        "attackers",
+        "defenders",
+        "defender",
+        "claimant",
+    )
+
+    @admin.display(description="casus belli", ordering="casus_belli__name")
+    def casus_belli_link(self, obj):
+        if obj.casus_belli:
+            url = reverse("admin:database_casusbelli_change", args=(obj.casus_belli.pk,))
+            return mark_safe(f'<a href="{url}">{obj.casus_belli}</a>')
+
+    @admin.display(description="claimant", ordering="claimant__name")
+    def claimant_link(self, obj):
+        if obj.claimant:
+            url = reverse("admin:database_character_change", args=(obj.claimant.pk,))
+            return mark_safe(f'<a href="{url}">{obj.claimant}</a>')
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("casus_belli", "claimant")

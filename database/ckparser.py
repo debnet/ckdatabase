@@ -16,12 +16,6 @@ except ImportError:
 
 # Logger (because logging is awesome)
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-formatter = logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s")
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-console_handler.setFormatter(formatter)
-logger.addHandler(console_handler)
 
 
 # Boolean transformation
@@ -188,7 +182,8 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
                                     formula = re.sub(rf"\b{var_name}\b", str(var_value), formula)
                                 try:
                                     result = eval(formula, None, variables)
-                                except:
+                                except Exception as e:
+                                    logger.warning(f"Formula [{formula}] can't be evaluated: {e}")
                                     result = None
                                 if isinstance(result, float):
                                     result = round(result, 5)
@@ -211,7 +206,8 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
                                 formula = re.sub(rf"\b{var_name}\b", str(var_value), formula)
                             try:
                                 result = eval(formula, None, variables)
-                            except:
+                            except Exception as e:
+                                logger.warning(f"Formula [{formula}] can't be evaluated: {e}")
                                 result = None
                             if isinstance(result, float):
                                 result = round(result, 5)
@@ -268,7 +264,7 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
                             (key, value), *_ = node.items()
                             if key.startswith("&"):
                                 prev[node_name] = node = [f"&{value}&"]
-                            elif node_name == "on_actions":  # Only for on_actions...
+                            elif node_name in ("on_actions", "events"):  # Only for on_actions/events...
                                 prev[node_name] = node = []
                             else:
                                 logger.warning(
@@ -640,12 +636,20 @@ if __name__ == "__main__":
     parser.add_argument("--comments", action="store_true", help="include comments?")
     parser.add_argument("--debug", action="store_true", help="debug mode?")
     args = parser.parse_args()
+
+    logger.setLevel(logging.DEBUG)
+    formatter = logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s")
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
     if args.debug:
         console_handler.setLevel(logging.DEBUG)
     file_handler = logging.FileHandler("ckparser.log")
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
+
     if args.revert:
         if os.path.isdir(args.path):
             logger.error("Reverting many files is not implemented yet!")
