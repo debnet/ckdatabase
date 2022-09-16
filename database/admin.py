@@ -1314,7 +1314,7 @@ class ReligionAdmin(BaseAdmin):
     list_display = (
         "name",
         "group",
-        "religious_head",
+        "religious_head_link",
         "exists",
         "wip",
     )
