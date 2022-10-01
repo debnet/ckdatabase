@@ -464,7 +464,7 @@ list_keys_rules = [
 ]
 
 
-def revert(obj, from_key=None, prev_key=None, depth=-1, sep=" " * 4):
+def revert(obj, from_key=None, prev_key=None, depth=-1, sep="\t"):
     """
     /!\\ Work in progress /!\\
     Try to revert a dict-struct to Paradox format
