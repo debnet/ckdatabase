@@ -1,6 +1,5 @@
 # coding: utf-8
 import collections
-import colorsys
 import datetime
 import json
 import logging
@@ -9,7 +8,7 @@ import re
 
 from django.core.management import BaseCommand
 
-from database.ckparser import parse_all_files, parse_all_locales, parse_file, variables
+from database.ckparser import convert_color, convert_date, parse_all_files, parse_all_locales, parse_file, variables
 from database.models import (
     Building,
     CasusBelli,
@@ -66,40 +65,6 @@ title_tiers = {
     "c": "county",
     "b": "barony",
 }
-
-
-def convert_color(color):
-    if not color:
-        return ""
-    if isinstance(color, str):
-        return color
-    if len(color) > 3 and isinstance(color[0], str):
-        color_type, *color = color[:4]
-        if color_type == "hsv360":
-            color = [int(c) / 360 for c in color]
-            color_type = "hsv"
-        if color_type != "rgb":
-            try:
-                functions = {"hsv": colorsys.hsv_to_rgb, "hls": colorsys.hls_to_rgb}
-                color = functions.get(color_type)(*color)
-            except:  # noqa
-                logger.warning(f"Unable to convert color {color} ({color_type}")
-                return ""
-    if any(isinstance(c, float) for c in color):
-        color = [round(c * 255) for c in color]
-    r, g, b = (hex(int(c)).split("x")[-1] for c in color[:3])
-    return f"{r:02}{g:02}{b:02}"
-
-
-def convert_date(date, key=None):
-    if not date:
-        return None
-    try:
-        year, month, day = (int(d) for d in date.split("."))
-        return datetime.date(year, month, day)
-    except Exception as error:
-        logger.error(f'Error converting date "{date}" for "{key}": {error}')
-        return None
 
 
 class Command(BaseCommand):
