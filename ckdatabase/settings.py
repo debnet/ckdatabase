@@ -160,6 +160,7 @@ class Base(Configuration):
     REST_FRAMEWORK = {
         "DEFAULT_PERMISSION_CLASSES": ("database.permissions.AccessApiPermissions",),
         "DEFAULT_AUTHENTICATION_CLASSES": (
+            "rest_framework.authentication.SessionAuthentication",
             "rest_framework.authentication.TokenAuthentication",
             "rest_framework.authentication.SessionAuthentication",
             "rest_framework_simplejwt.authentication.JWTAuthentication",
