@@ -21,10 +21,10 @@ logger = logging.getLogger(__name__)
 
 # Boolean transformation
 booleans = {"yes": True, "no": False}
-# Tags with must be aggregate as a list in JSON (don't hesitate to add more if needed)
-forced_list_keys = (
-    # "if", "else_if", "else", "not", "or", "and", "nor", "nand", "root", "from", "prev",
-)
+# Tags which must be aggregate as a list in JSON (don't hesitate to add more if needed)
+forced_list_keys = []  # "if", "else_if", "else", "not", "or", "and", "nor", "nand", "root", "from", "prev"
+# Tags or tag couples which be forced as a string in revert parser
+forced_string_keys = []
 # Special keywords
 keywords = ("scripted_trigger", "scripted_effect")
 # Variables collected in files
@@ -34,8 +34,10 @@ variables = {}
 # Regex to find and replace quoted string
 regex_string = re.compile(r"\"[^\"\n]*\"")
 regex_string_multiline = re.compile(r"\"[^\"]*\"", re.MULTILINE)
+# Regex for quoted strings inside quoted strings
+regex_inner_string = re.compile(r"\|(?P<number>\d+)\|")
 # Regex to remove comments in files
-regex_comment = re.compile(r"(?P<space>\s*)##*(?P<comment>.*)$", re.MULTILINE)
+regex_comment = re.compile(r"(?P<space>\s*)#(?P<comment>.*)$", re.MULTILINE)
 # Regex for fixing blocks with no equal sign
 regex_block = re.compile(r"^([^\s\{\=]+)\s*\{\s*$", re.MULTILINE)
 # Regex to remove "list" prefix
@@ -150,7 +152,6 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
         text = text.replace(f"{keyword} ", f"{keyword}|")
     for index, string in strings.items():
         text = text.replace(f"|{index}|", string, 1)
-    del strings
     # Parsing document line by line
     for line_number, line_text in enumerate(text.splitlines(), start=1):
         try:
@@ -164,6 +165,10 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
             if match := regex_line.fullmatch(line_text):
                 key, operator, _, value = match.groups()
                 value = value.strip()
+                if subindexes := key.startswith("&") and list(map(int, regex_inner_string.findall(value))):
+                    for subindex in subindexes:
+                        value = value.replace(f"|{subindex}|", strings[subindex], 1)
+                    value = value.strip('"')  # Removing extra quotes
                 # If value is a new block
                 if value.endswith("{"):
                     item = {}
@@ -271,6 +276,10 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
                                     variable_name = key.lstrip("@")
                                     variables[variable_name] = local_variables[variable_name] = value
                         elif key.startswith("&") and isinstance(node, list):
+                            if subindexes := list(map(int, regex_inner_string.findall(value))):
+                                for subindex in subindexes:
+                                    value = value.replace(f"|{subindex}|", strings[subindex], 1)
+                                value = value.strip('"')  # Removing extra quotes
                             node.append(f"&{value}&")
                         else:
                             node[key] = value
@@ -298,6 +307,10 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
                         if node and isinstance(node, dict):
                             (key, value), *_ = node.items()
                             if key.startswith("&"):
+                                if subindexes := list(map(int, regex_inner_string.findall(value))):
+                                    for subindex in subindexes:
+                                        value = value.replace(f"|{subindex}|", strings[subindex], 1)
+                                    value = value.strip('"')  # Removing extra quotes
                                 prev[node_name] = node = [f"&{value}&"]
                             elif node_name in ("on_actions", "events"):  # Only for on_actions/events...
                                 prev[node_name] = node = []
@@ -576,7 +589,12 @@ def revert_value(value, from_key=None, prev_key=None):
     elif isinstance(value, str):
         if value.startswith("&") and value.endswith("&"):
             return f"#{value}"
-        elif " " in value or (value.startswith("$") and value.endswith("$")):
+        elif (
+            " " in value
+            or (value.startswith("$") and value.endswith("$"))
+            or from_key in forced_string_keys
+            or (prev_key and (prev_key, from_key) in forced_string_keys)
+        ):
             value = value.replace('"', '\\"')
             return f'"{value}"'
     elif isinstance(value, dict):

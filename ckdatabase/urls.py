@@ -20,7 +20,7 @@ if settings.DEBUG:
         urlpatterns += [path("debug/", include(debug_toolbar.urls))]
 
 urlpatterns += [
-    path('api/auth/', include('rest_framework.urls', namespace='rest_framework')),
+    path("api/auth/", include("rest_framework.urls", namespace="rest_framework")),
     path("api/", include("database.api", namespace="database-api")),
     path("common/", include("common.urls", namespace="common")),
     path("api/common/", include("common.api.urls", namespace="common-api")),
