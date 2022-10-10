@@ -37,7 +37,7 @@ regex_string_multiline = re.compile(r"\"[^\"]*\"", re.MULTILINE)
 # Regex for quoted strings inside quoted strings
 regex_inner_string = re.compile(r"\|(?P<index>\d+)\|")
 # Regex to remove comments in files
-regex_comment = re.compile(r"(?P<space>\s*)#(?P<comment>.*)$", re.MULTILINE)
+regex_comment = re.compile(r"(?P<space>\s*)#+(?P<comment>.*)$", re.MULTILINE)
 # Regex for fixing blocks with no equal sign
 regex_block = re.compile(r"^([^\s\{\=]+)\s*\{\s*$", re.MULTILINE)
 # Regex to remove "list" prefix
@@ -132,7 +132,7 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
         text = text.replace(match.group(0), f"|{index}|", 1)
     if comments:
         for index, match in enumerate(regex_comment.finditer(text), start=index + 1):
-            value, space = match.group("comment").replace('"', "'").rstrip(), match.group("space")
+            value, space = match.group("comment").replace('"', "'").strip("# "), match.group("space")
             strings[index] = f'"{value}"'
             repl = f"\n{space}&{index}=|{index}|\n" if value.strip() else ""
             text = text.replace(match.group(0), repl, 1)
@@ -638,8 +638,6 @@ def revert_file(path, output_dir=None, encoding="utf_8_sig", base_dir=None, save
         base_dir = os.sep.join(base_dir.rstrip(os.sep).split(os.sep)[:-1]) + os.sep
         base_dir = os.path.dirname(path.replace(base_dir, ""))
     base_dir = base_dir or "."
-    # if not base_dir:
-    # base_dir = os.path.dirname(path).split(os.sep)[-1]
     with open(path) as file:
         data = json.load(file)
     filename = os.path.join(base_dir, os.path.basename(path))
