@@ -35,7 +35,7 @@ variables = {}
 regex_string = re.compile(r"\"[^\"\n]*\"")
 regex_string_multiline = re.compile(r"\"[^\"]*\"", re.MULTILINE)
 # Regex for quoted strings inside quoted strings
-regex_inner_string = re.compile(r"\|(?P<number>\d+)\|")
+regex_inner_string = re.compile(r"\|(?P<index>\d+)\|")
 # Regex to remove comments in files
 regex_comment = re.compile(r"(?P<space>\s*)#(?P<comment>.*)$", re.MULTILINE)
 # Regex for fixing blocks with no equal sign
@@ -165,8 +165,8 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
             if match := regex_line.fullmatch(line_text):
                 key, operator, _, value = match.groups()
                 value = value.strip()
-                if subindexes := key.startswith("&") and list(map(int, regex_inner_string.findall(value))):
-                    for subindex in subindexes:
+                if subindexes := key.startswith("&") and regex_inner_string.findall(value):
+                    for subindex in map(int, subindexes):
                         value = value.replace(f"|{subindex}|", strings[subindex], 1)
                     value = value.strip('"')  # Removing extra quotes
                 # If value is a new block
@@ -276,8 +276,8 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
                                     variable_name = key.lstrip("@")
                                     variables[variable_name] = local_variables[variable_name] = value
                         elif key.startswith("&") and isinstance(node, list):
-                            if subindexes := list(map(int, regex_inner_string.findall(value))):
-                                for subindex in subindexes:
+                            if subindexes := regex_inner_string.findall(value):
+                                for subindex in map(int, subindexes):
                                     value = value.replace(f"|{subindex}|", strings[subindex], 1)
                                 value = value.strip('"')  # Removing extra quotes
                             node.append(f"&{value}&")
@@ -307,8 +307,8 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
                         if node and isinstance(node, dict):
                             (key, value), *_ = node.items()
                             if key.startswith("&"):
-                                if subindexes := list(map(int, regex_inner_string.findall(value))):
-                                    for subindex in subindexes:
+                                if subindexes := regex_inner_string.findall(value):
+                                    for subindex in map(int, subindexes):
                                         value = value.replace(f"|{subindex}|", strings[subindex], 1)
                                     value = value.strip('"')  # Removing extra quotes
                                 prev[node_name] = node = [f"&{value}&"]
