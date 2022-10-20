@@ -113,13 +113,14 @@ def read_file(path, encoding="utf_8_sig"):
         return file.read()
 
 
-def parse_text(text, return_text_on_error=False, comments=False, filename=None):
+def parse_text(text, return_text_on_error=False, comments=False, filename=None, is_global=False):
     """
     Parse raw text
     :param text: Text to parse
     :param return_text_on_error: (default false) Return working text document if parsing fails
     :param comments: (default false) Include comments?
     :param filename: (default none) Filename (only for debugging)
+    :param is_global: (default false) Are variables global?
     :return: Parsed data as dictionary
     """
     root = {}
@@ -242,10 +243,10 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
                     elif isinstance(value, str):
                         if value.startswith("@[") and value.endswith("]"):
                             formula = value.lstrip("@[").rstrip("]")
-                            for var_name, var_value in variables.items():
+                            for var_name, var_value in (variables | local_variables).items():
                                 formula = re.sub(rf"\b{var_name}\b", str(var_value), formula)
                             try:
-                                result = eval(formula, None, variables)
+                                result = eval(formula, None, variables | local_variables)
                             except Exception as e:
                                 logger.warning(f"Formula [{formula}] can't be evaluated: {e}")
                                 result = None
@@ -256,25 +257,29 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
                                 "@value": value,
                                 "@result": result,
                             }
-                            if result:  # and key.startswith("@"):
+                            if result is not None and (key.startswith("@") or len(nodes) == 1):
                                 variable_name = key.lstrip("@")
-                                variables[variable_name] = local_variables[variable_name] = result
+                                local_variables[variable_name] = result
+                                if is_global:
+                                    variables[variable_name] = result
                         elif value.startswith("@"):
                             node[key] = {
                                 "@type": "variable",
                                 "@value": value,
                                 "@result": variables.get(value.lstrip("@")),
                             }
-                        elif variable_value := variables.get(value):
-                            if not isinstance(variable_value, str):
+                        elif result := (local_variables.get(value) or variables.get(value)):
+                            if not isinstance(result, str):
                                 node[key] = {
                                     "@type": "variable",
                                     "@value": value,
-                                    "@result": variable_value,
+                                    "@result": result,
                                 }
-                                if value and key.startswith("@"):
+                                if result is not None and (key.startswith("@") or len(nodes) == 1):
                                     variable_name = key.lstrip("@")
-                                    variables[variable_name] = local_variables[variable_name] = value
+                                    local_variables[variable_name] = result
+                                    if is_global:
+                                        variables[variable_name] = result
                         elif key.startswith("&") and isinstance(node, list):
                             if subindexes := regex_inner_string.findall(value):
                                 for subindex in map(int, subindexes):
@@ -283,14 +288,18 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
                             node.append(f"&{value}&")
                         else:
                             node[key] = value
-                            if value and key.startswith("@"):
+                            if value is not None and (key.startswith("@") or len(nodes) == 1):
                                 variable_name = key.lstrip("@")
-                                variables[variable_name] = local_variables[variable_name] = value
+                                local_variables[variable_name] = value
+                                if is_global:
+                                    variables[variable_name] = value
                     else:
                         node[key] = value
-                        if value and key.startswith("@"):
+                        if value is not None and (key.startswith("@") or len(nodes) == 1):
                             variable_name = key.lstrip("@")
-                            variables[variable_name] = local_variables[variable_name] = value
+                            local_variables[variable_name] = value
+                            if is_global:
+                                variables[variable_name] = value
             # If line is opening bracket inside an operator
             elif line_text == "{" and node_name == "@":
                 continue
@@ -358,7 +367,7 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None):
     return root
 
 
-def parse_file(path, output_dir=None, encoding="utf_8_sig", base_dir=None, save=False, comments=False):
+def parse_file(path, output_dir=None, encoding="utf_8_sig", base_dir=None, save=False, comments=False, is_global=False):
     """
     Parse file
     :param path: Path to file to parse
@@ -367,6 +376,7 @@ def parse_file(path, output_dir=None, encoding="utf_8_sig", base_dir=None, save=
     :param base_dir: Base directory (for debug)
     :param save: (default false) Save parsed file in output directory
     :param comments: Include comments?
+    :param is_global: (default false) Are file's variables global?
     :return: Parsed data as dictionary or text if parsing fails
     """
     start_time = datetime.datetime.utcnow()
@@ -381,7 +391,7 @@ def parse_file(path, output_dir=None, encoding="utf_8_sig", base_dir=None, save=
         return None
     filename = os.path.join(base_dir, os.path.basename(path))
     logger.debug(f"Parsing {filename}")
-    data = parse_text(text, return_text_on_error=True, comments=comments, filename=filename)
+    data = parse_text(text, return_text_on_error=True, comments=comments, filename=filename, is_global=is_global)
     if save:
         filename, _ = os.path.splitext(os.path.basename(path))
         directory = os.path.join(output_dir or "output", *base_dir.split(os.sep))
@@ -431,6 +441,7 @@ def parse_all_files(
                     base_dir=path,
                     save=save,
                     comments=comments,
+                    is_global=current_path.endswith("script_values"),
                 )
                 if isinstance(data, str):
                     errors.append(filepath)

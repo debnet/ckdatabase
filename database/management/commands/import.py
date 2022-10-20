@@ -771,15 +771,24 @@ class Command(BaseCommand):
                 if not isinstance(item, dict):
                     logger.debug(f'Unexpected data for men-at-arms "{key}": "{item}"')
                     continue
+                buy_cost = get_value(item.get("buy_cost", {}).get("gold"))
+                if isinstance(buy_cost, str):
+                    buy_cost = None
+                low_maintenance_cost = get_value(item.get("low_maintenance_cost", {}).get("gold"))
+                if isinstance(low_maintenance_cost, str):
+                    low_maintenance_cost = None
+                high_maintenance_cost = get_value(item.get("high_maintenance_cost", {}).get("gold"))
+                if isinstance(high_maintenance_cost, str):
+                    high_maintenance_cost = None
                 men_at_arms, created = MenAtArms.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
                         description=get_locale(f"{key}_flavor"),
                         type=item.get("type"),
-                        buy_cost=get_value(item.get("buy_cost", {}).get("gold")),
-                        low_maintenance_cost=get_value(item.get("low_maintenance_cost", {}).get("gold")),
-                        high_maintenance_cost=get_value(item.get("high_maintenance_cost", {}).get("gold")),
+                        buy_cost=buy_cost,
+                        low_maintenance_cost=low_maintenance_cost,
+                        high_maintenance_cost=high_maintenance_cost,
                         damage=item.get("damage"),
                         toughness=item.get("toughness"),
                         pursuit=item.get("pursuit"),
@@ -1058,6 +1067,18 @@ class Command(BaseCommand):
                 continue
             item = {k: v for k, v in item.items() if not regex_date.fullmatch(k)}
             for key, item, liege_key in walk_titles(subdata):
+                province = get_object(Province, item.get("province"))
+                try:
+                    if province and province.title.id != key:
+                        logger.warning(
+                            f'Province "{province}" ({province.id}) is already related to '
+                            f'title "{province.title}" ({province.title.id}) and will be deleted'
+                        )
+                        province_title = province.title
+                        province_title.province = None
+                        province_title.save(update_fields=("province",))
+                except:  # noqa
+                    pass
                 title, created = Title.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
