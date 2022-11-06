@@ -568,10 +568,12 @@ class Command(BaseCommand):
                     if not group:
                         group, _ = Trait.objects.import_update_or_create(
                             id=group_key,
-                            name=get_locale(f"trait_{group_key}"),
-                            description=get_locale(f"trait_{group_key}_desc"),
-                            is_group=True,
-                            exists=True,
+                            defaults=dict(
+                                name=get_locale(f"trait_{group_key}"),
+                                description=get_locale(f"trait_{group_key}_desc"),
+                                is_group=True,
+                                exists=True,
+                            )
                         )
                         keep_object(Trait, group)
                 trait, created = Trait.objects.import_update_or_create(
@@ -1628,6 +1630,9 @@ class Command(BaseCommand):
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     continue
+                target_title_tier = item.get("target_title_tier") or ""
+                if isinstance(target_title_tier, dict):
+                    target_title_tier = target_title_tier.get("@value") or ""
                 casus_belli, created = CasusBelli.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
@@ -1635,7 +1640,7 @@ class Command(BaseCommand):
                         description=get_locale(item.get("war_name") or f"{key}_desc"),
                         group=get_object(CasusBelliGroup, item.get("group")),
                         target_titles=item.get("target_titles") or "",
-                        target_title_tier=item.get("target_title_tier") or "",
+                        target_title_tier=target_title_tier,
                         raw_data=item,
                         exists=True,
                     ),
