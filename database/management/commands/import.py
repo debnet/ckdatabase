@@ -57,6 +57,7 @@ logger = logging.getLogger(__name__)
 
 regex_date = re.compile(r"\d{1,4}\.\d{1,2}\.\d{1,2}")
 regex_sublocale = re.compile(r"(\$([^\$]+)\$)")
+regex_emphasis = re.compile(r"(\[([^|\]]+)\|E\])")
 regex_title = re.compile(r"^[ekdcbx]_")
 title_tiers = {
     "e": "empire",
@@ -144,9 +145,12 @@ class Command(BaseCommand):
             if isinstance(key, list):
                 logger.warning(f"Multiple keys {key} requested for locale")
                 key = key[-1]
-            locale = all_locales.get(key, key if keep else "")
-            for key, sublocale in regex_sublocale.findall(locale):
-                locale = locale.replace(key, all_locales.get(sublocale, key if keep else ""))
+            locale = all_locales.get(key) or (key if keep else "") or ""
+            if locale:
+                for key, sublocale in regex_emphasis.findall(locale):
+                    locale = locale.replace(key, all_locales.get(sublocale) or key)
+                for key, sublocale in regex_sublocale.findall(locale):
+                    locale = locale.replace(key, all_locales.get(sublocale) or key)
             return locale
 
         def get_value(item):
