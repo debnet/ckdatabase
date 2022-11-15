@@ -473,9 +473,9 @@ def parse_all_locales(path, encoding="utf_8_sig", language="english", save=False
                 continue
             filepath = os.path.join(current_path, filename)
             with open(filepath, encoding=encoding) as file:
-                header = file.readline()
-                if language not in header:
-                    continue
+                while line := file.readline():
+                    if line.strip().lower() == f"l_{language}:":
+                        break
                 for line in file:
                     if match := regex_locale.match(line):
                         key, value = match.groups()
