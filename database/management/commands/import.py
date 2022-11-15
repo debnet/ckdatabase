@@ -577,7 +577,7 @@ class Command(BaseCommand):
                                 description=get_locale(f"trait_{group_key}_desc"),
                                 is_group=True,
                                 exists=True,
-                            )
+                            ),
                         )
                         keep_object(Trait, group)
                 trait, created = Trait.objects.import_update_or_create(
@@ -1450,6 +1450,7 @@ class Command(BaseCommand):
                                 is_unemployed=is_unemployed,
                                 employer=employer,
                                 add_spouse=get_object(Character, subitem.get("add_spouse")),
+                                add_matrilineal_spouse=get_object(Character, subitem.get("add_matrilineal_spouse")),
                                 remove_spouse=get_object(Character, subitem.get("remove_spouse")),
                                 add_soulmate=add_soulmate,
                                 remove_soulmate=rem_soulmate,

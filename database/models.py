@@ -243,6 +243,7 @@ class Character(BaseModel, BaseCharacter):
                 prowess=history.prowess,
                 employer=0 if history.is_unemployed else history.employer_id,
                 add_spouse=history.add_spouse_id,
+                add_matrilineal_spouse=history.add_matrilineal_spouse_id,
                 remove_spouse=history.remove_spouse_id,
                 remove_trait=list(history.traits_removed.order_by("id").values_list("id", flat=True)),
                 trait=list(history.traits_added.order_by("id").values_list("id", flat=True)),
@@ -337,6 +338,13 @@ class CharacterHistory(Entity, BaseCharacter):
         null=True,
         on_delete=models.SET_NULL,
         related_name="spouses_added",
+    )
+    add_matrilineal_spouse = models.ForeignKey(
+        "Character",
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="matrilineal_spouses_added",
     )
     remove_spouse = models.ForeignKey(
         "Character",
