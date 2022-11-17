@@ -387,7 +387,7 @@ def parse_file(path, output_dir=None, encoding="utf_8_sig", base_dir=None, save=
     # if not base_dir:
     # base_dir = os.path.dirname(path).split(os.sep)[-1]
     text = read_file(path, encoding)
-    if not text.strip():
+    if not text or not text.strip():
         return None
     filename = os.path.join(base_dir, os.path.basename(path))
     logger.debug(f"Parsing {filename}")
@@ -543,7 +543,7 @@ def revert(obj, from_key=None, prev_key=None, depth=-1, sep="\t"):
                 lines.append(f"{tabs}{line}")
         else:
             if from_key:
-                from_key = from_key.replace("|", " ")
+                from_key = str(from_key).replace("|", " ")
                 lines.append(f"{tabs}{from_key} = {{")
             elif depth > 0:
                 lines.append(f"{tabs}{{")
@@ -563,7 +563,7 @@ def revert(obj, from_key=None, prev_key=None, depth=-1, sep="\t"):
                 lines.extend(revert(value, from_key=from_key, prev_key=prev_key, depth=depth))
         else:
             if from_key:
-                key = from_key.replace("|", " ")
+                key = str(from_key).replace("|", " ")
                 lines.append(f"{tabs}{key} = {{")
             else:
                 lines.append(f"{tabs}{{")
@@ -576,7 +576,7 @@ def revert(obj, from_key=None, prev_key=None, depth=-1, sep="\t"):
                 value = obj.strip("&")
                 lines.append(f"{tabs}#{value}")
             else:
-                from_key = from_key.replace("|", " ")
+                from_key = str(from_key).replace("|", " ")
                 value = revert_value(obj, from_key, prev_key)
                 lines.append(f"{tabs}{from_key} = {value}")
         else:
