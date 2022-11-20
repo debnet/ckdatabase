@@ -55,7 +55,7 @@ regex_item = re.compile(r"(\"[^\"]+\"|[\d\.]+|[^\s]+)")
 # Regex to remove empty lines
 regex_empty = re.compile(r"(\n\s*\n)+", re.MULTILINE)
 # Regex to parse locale files
-regex_locale = re.compile(r"^\s+(?P<key>[^\:#]+)\:\d+\s\"(?P<value>.+)\".*$")
+regex_locale = re.compile(r"^\s*(?P<key>[^\:#]+)\:\d+\s\"(?P<value>.+)\".*$")
 
 
 def convert_color(color):
