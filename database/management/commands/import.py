@@ -131,11 +131,12 @@ class Command(BaseCommand):
             subobjects[key] = obj
             return obj
 
-        def keep_object(model, object):
+        def keep_object(model, object, warning=True):
             objects = all_objects.setdefault(model, {})
             if object.pk in objects:
                 all_duplicates.setdefault(model._meta.object_name, []).append(object.keys)
-                logger.warning(f'Duplicated {model._meta.verbose_name} "{object.keys}" in different files')
+                if warning:
+                    logger.warning(f'Duplicated {model._meta.verbose_name} "{object.keys}" in different files')
             objects[object.pk] = object
             missings = all_missings.setdefault(model._meta.object_name, [])
             if object.pk in missings:
@@ -512,36 +513,41 @@ class Command(BaseCommand):
                             keep_object(CultureEthnicity, culture_ethnicity)
         mark_as_done(Culture, count, start_date)
 
-        # Culture history
+        # Culture & heritage history
         count_heritage, count_culture, start_date = 0, 0, datetime.datetime.now()
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("history/cultures/"):
                 continue
             key = os.path.basename(file)
-            for model, history_model, field_name in (
+            for model, history_model, field in (
                 (Heritage, HeritageHistory, "heritage"),
                 (Culture, CultureHistory, "culture"),
             ):
+                histories = {}
                 instance = all_objects.setdefault(model, {}).get(key)
                 if not instance or instance.wip:
                     continue
                 for date, item in subdata.items():
                     if date := regex_date.fullmatch(date) and convert_date(date, key):
+                        pdx_date = to_pdx_date(date)
                         if isinstance(item, list):
-                            pdx_date = to_pdx_date(date)
-                            logger.warning(f'Duplicated {history_model._meta.verbose_name} "{key}" for "{pdx_date}"')
+                            logger.warning(f'Duplicated {field} history "{key}" for "{pdx_date}"')
                             all_duplicates.setdefault(history_model._meta.object_name, []).append((key, pdx_date))
                             item = {k: v for d in item for k, v in d.items()}
                         if not isinstance(item, dict):
                             continue
+                        if previous_history := histories.get((key, date)):
+                            logger.warning(f'Duplicated {field} history "{key}" for "{pdx_date}" in different files')
+                            item = {**previous_history, **item}
+                        histories[key, date] = item
                         history, created = history_model.objects.update_or_create(
                             defaults=dict(
                                 join_era=get_object(Era, item.get("join_era")),
                             ),
                             date=date,
-                            **{field_name: instance},
+                            **{field: instance},
                         )
-                        keep_object(history_model, history)
+                        keep_object(history_model, history, warning=True)
                         count_heritage += 1 if history_model is HeritageHistory else 0
                         count_culture += 1 if history_model is CultureHistory else 0
                         history.created = created
@@ -1034,12 +1040,13 @@ class Command(BaseCommand):
         mark_as_done(Province, count, start_date)
 
         # Province history
+        histories = {}
         count, start_date = 0, datetime.datetime.now()
         for key, item in provinces.items():
             for date, subitem in item.items():
                 if date := regex_date.fullmatch(date) and convert_date(date, key):
+                    pdx_date = to_pdx_date(date)
                     if isinstance(subitem, list):
-                        pdx_date = to_pdx_date(date)
                         logger.warning(f'Duplicated province history "{key}" for "{pdx_date}"')
                         all_duplicates.setdefault(ProvinceHistory._meta.object_name, []).append((key, pdx_date))
                         subitem = {k: v for d in subitem for k, v in d.items()}
@@ -1048,6 +1055,10 @@ class Command(BaseCommand):
                     province = get_object(Province, key)
                     if province.wip:
                         continue
+                    if previous_history := histories.get((key, date)):
+                        logger.warning(f'Duplicated province history "{key}" for "{pdx_date}" in different files')
+                        subitem = {**previous_history, **subitem}
+                    histories[key, date] = subitem
                     province_history, created = ProvinceHistory.objects.update_or_create(
                         province=province,
                         date=date,
@@ -1061,7 +1072,7 @@ class Command(BaseCommand):
                     if buildings := subitem.get("buildings"):
                         buildings = buildings if isinstance(buildings, list) else [buildings]
                         province_history.buildings.set([get_object(Building, building) for building in buildings])
-                    keep_object(ProvinceHistory, province_history)
+                    keep_object(ProvinceHistory, province_history, warning=False)
                     count += 1
                     province_history.created = created
         mark_as_done(ProvinceHistory, count, start_date)
@@ -1361,6 +1372,7 @@ class Command(BaseCommand):
         mark_as_done(Character, count, start_date)
 
         # Character history
+        histories = {}
         count, start_date = 0, datetime.datetime.now()
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("history/characters/"):
@@ -1375,13 +1387,17 @@ class Command(BaseCommand):
                     continue
                 for date, subitem in item.items():
                     if date := regex_date.fullmatch(date) and convert_date(date, key):
+                        pdx_date = to_pdx_date(date)
                         if isinstance(subitem, list):
-                            pdx_date = to_pdx_date(date)
                             logger.warning(f'Duplicated character history "{key}" for "{pdx_date}"')
                             all_duplicates.setdefault(CharacterHistory._meta.object_name, []).append((key, pdx_date))
                             subitem = {k: v for i in subitem for k, v in i.items() if isinstance(i, dict)}
                         if not subitem:
                             continue
+                        if previous_history := histories.get((key, date)):
+                            logger.warning(f'Duplicated character history "{key}" for "{pdx_date}" in different files')
+                            subitem = {**previous_history, **subitem}
+                        histories[key, date] = subitem
                         effect = subitem.get("effect", {})
                         if isinstance(effect, list):
                             effect = {k: v for i in effect for k, v in i.items()}
@@ -1477,7 +1493,7 @@ class Command(BaseCommand):
                                 raw_data=subitem,
                             ),
                         )
-                        keep_object(CharacterHistory, history)
+                        keep_object(CharacterHistory, history, warning=False)
                         count += 1
                         history.created = created
                         relations_m2m = (
@@ -1544,6 +1560,7 @@ class Command(BaseCommand):
         mark_as_done(Law, count, start_date)
 
         # Title history
+        histories = {}
         count, start_date = 0, datetime.datetime.now()
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("history/titles/"):
@@ -1561,13 +1578,17 @@ class Command(BaseCommand):
                     continue
                 for date, subitem in item.items():
                     if date := regex_date.fullmatch(date) and convert_date(date, key):
+                        pdx_date = to_pdx_date(date)
                         if isinstance(subitem, list):
-                            pdx_date = to_pdx_date(date)
                             logger.warning(f'Duplicated title history "{key}" for "{pdx_date}"')
                             all_duplicates.setdefault(TitleHistory._meta.object_name, []).append((key, pdx_date))
                             subitem = {k: v for i in subitem for k, v in i.items() if isinstance(i, dict)}
                         if not subitem:
                             continue
+                        if previous_history := histories.get((key, date)):
+                            logger.warning(f'Duplicated title history "{key}" for "{pdx_date}" in different files')
+                            subitem = {**previous_history, **subitem}
+                        histories[key, date] = subitem
                         liege, is_independent = None, (subitem.get("liege") == 0) or None
                         if not is_independent:
                             liege = get_object(Title, subitem.get("liege"))
@@ -1587,7 +1608,7 @@ class Command(BaseCommand):
                                 raw_data=subitem,
                             ),
                         )
-                        keep_object(TitleHistory, history)
+                        keep_object(TitleHistory, history, warning=False)
                         count += 1
                         history.created = created
                         if succession_laws := subitem.get("succession_laws"):
