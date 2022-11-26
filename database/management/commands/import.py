@@ -1340,7 +1340,7 @@ class Command(BaseCommand):
                         gold=item.get("add_gold"),
                         prestige=item.get("add_prestige"),
                         piety=item.get("add_piety"),
-                        dna_data=dna.get(item.get("dna")),
+                        dna_data=dna.get(item.get("dna")) or dna.get(key),
                         raw_data=item,
                         exists=True,
                     ),
