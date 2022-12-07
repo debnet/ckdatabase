@@ -5,6 +5,8 @@ import json
 import logging
 import os
 import re
+from functools import partial
+from tqdm.auto import tqdm
 
 from django.core.management import BaseCommand
 
@@ -66,6 +68,8 @@ title_tiers = {
     "c": "county",
     "b": "barony",
 }
+
+tqdm = partial(tqdm, bar_format="{l_bar:.>40}{bar}{r_bar:.<40}")
 
 
 class Command(BaseCommand):
@@ -179,7 +183,9 @@ class Command(BaseCommand):
                     break
                 all_data.update(parse_all_files(mod_path, keep_data=True, save=save))
             all_data = {
-                key.lower(): value for key, value in sorted(all_data.items()) if unused or "unused" not in key.lower()
+                key.lower(): value
+                for key, value in sorted(all_data.items())
+                if unused or "unused" not in key.lower()
             }
             with open("_all_data.json", "w") as file:
                 json.dump(all_data, file, indent=4)
@@ -211,7 +217,7 @@ class Command(BaseCommand):
                 json.dump(all_locales, file, indent=4, sort_keys=True)
             with open("_all_locales.json") as file:
                 all_locales = json.load(file)
-        for key, value in current_locales.items():
+        for key, value in tqdm(current_locales.items(), desc="Locales"):
             localization, created = Localization.objects.import_update_or_create(
                 key=key,
                 language="en",
@@ -225,10 +231,14 @@ class Command(BaseCommand):
 
         # Ethos
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/culture/pillars/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Ethos"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated ethos "{key}"')
                     item = {k: v for d in item for k, v in d.items()}
@@ -248,12 +258,16 @@ class Command(BaseCommand):
                 ethos.created = created
         mark_as_done(Ethos, count, start_date)
 
-        # Heritage
+        # Heritages
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/culture/pillars/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Heritages"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated heritage "{key}"')
                     all_duplicates.setdefault(Heritage._meta.object_name, []).append(key)
@@ -274,12 +288,16 @@ class Command(BaseCommand):
                 heritage.created = created
         mark_as_done(Heritage, count, start_date)
 
-        # Language
+        # Languages
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/culture/pillars/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Languages"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated language "{key}"')
                     all_duplicates.setdefault(Language._meta.object_name, []).append(key)
@@ -299,12 +317,16 @@ class Command(BaseCommand):
                 language.created = created
         mark_as_done(Language, count, start_date)
 
-        # Martial custom
+        # Martial customs
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/culture/pillars/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Martial customs"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated martial custom "{key}"')
                     all_duplicates.setdefault(MartialCustom._meta.object_name, []).append(key)
@@ -325,12 +347,16 @@ class Command(BaseCommand):
                 martial_custom.created = created
         mark_as_done(MartialCustom, count, start_date)
 
-        # Name list
+        # Name lists
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/culture/name_lists/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Name lists"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated name list "{key}"')
                     all_duplicates.setdefault(NameList._meta.object_name, []).append(key)
@@ -351,12 +377,16 @@ class Command(BaseCommand):
                 name_list.created = created
         mark_as_done(NameList, count, start_date)
 
-        # Tradition
+        # Traditions
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/culture/traditions/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Traditions"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated tradition "{key}"')
                     all_duplicates.setdefault(Tradition._meta.object_name, []).append(key)
@@ -379,12 +409,16 @@ class Command(BaseCommand):
                 tradition.created = created
         mark_as_done(Tradition, count, start_date)
 
-        # Era
+        # Eras
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/culture/eras/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Eras"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated era "{key}"')
                     all_duplicates.setdefault(Era._meta.object_name, []).append(key)
@@ -407,12 +441,16 @@ class Command(BaseCommand):
                 era.created = created
         mark_as_done(Era, count, start_date)
 
-        # Innovation
+        # Innovations
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/culture/innovations/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Innovations"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated innovation "{key}"')
                     all_duplicates.setdefault(Innovation._meta.object_name, []).append(key)
@@ -436,12 +474,16 @@ class Command(BaseCommand):
                 innovation.created = created
         mark_as_done(Innovation, count, start_date)
 
-        # Ethnicity
+        # Ethnicities
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/ethnicities/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Ethnicities"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated ethnicity "{key}"')
                     all_duplicates.setdefault(Ethnicity._meta.object_name, []).append(key)
@@ -464,12 +506,16 @@ class Command(BaseCommand):
                 ethnicity.created = created
         mark_as_done(Ethnicity, count, start_date)
 
-        # Culture
+        # Cultures
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/culture/cultures/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Cultures"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated culture "{key}"')
                     all_duplicates.setdefault(Culture._meta.object_name, []).append(key)
@@ -515,19 +561,28 @@ class Command(BaseCommand):
 
         # Culture & heritage history
         count_heritage, count_culture, start_date = 0, 0, datetime.datetime.now()
+        files = {}
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("history/cultures/"):
                 continue
             key = os.path.basename(file)
-            for model, history_model, field in (
-                (Heritage, HeritageHistory, "heritage"),
-                (Culture, CultureHistory, "culture"),
-            ):
-                histories = {}
+            for model in (Heritage, Culture):
                 instance = all_objects.setdefault(model, {}).get(key)
                 if not instance or instance.wip:
                     continue
-                for date, item in subdata.items():
+                files.setdefault(model, []).append(file)
+        for model, history_model, field, name in (
+            (Heritage, HeritageHistory, "heritage", "Heritage history"),
+            (Culture, CultureHistory, "culture", "Culture history"),
+        ):
+            histories = {}
+            for file in tqdm(files[model], desc=name):
+                subdata = all_data[file]
+                key = os.path.basename(file)
+                instance = all_objects.setdefault(model, {}).get(key)
+                if not instance or instance.wip:
+                    continue
+                for date, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                     if date := regex_date.fullmatch(date) and convert_date(date, key):
                         pdx_date = to_pdx_date(date)
                         if isinstance(item, list):
@@ -537,12 +592,15 @@ class Command(BaseCommand):
                         if not isinstance(item, dict):
                             continue
                         if previous_history := histories.get((key, date)):
-                            logger.warning(f'Duplicated {field} history "{key}" for "{pdx_date}" in different files')
+                            logger.warning(
+                                f'Duplicated {field} history "{key}" for "{pdx_date}" in different files'
+                            )
                             item = {**previous_history, **item}
                         histories[key, date] = item
                         history, created = history_model.objects.update_or_create(
                             defaults=dict(
                                 join_era=get_object(Era, item.get("join_era")),
+                                raw_data=item,
                             ),
                             date=date,
                             **{field: instance},
@@ -559,12 +617,16 @@ class Command(BaseCommand):
         mark_as_done(HeritageHistory, count_heritage, start_date)
         mark_as_done(CultureHistory, count_culture, start_date)
 
-        # Trait
+        # Traits
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/traits/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Traits"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated trait "{key}"')
                     all_duplicates.setdefault(Trait._meta.object_name, []).append(key)
@@ -653,12 +715,16 @@ class Command(BaseCommand):
                     trait.opposites.set([get_object(Trait, key) for key in opposites])
         mark_as_done(Trait, count, start_date)
 
-        # Building
+        # Buildings
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/buildings/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Buildings"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated building "{key}"')
                     all_duplicates.setdefault(Building._meta.object_name, []).append(key)
@@ -685,7 +751,7 @@ class Command(BaseCommand):
                 keep_object(Building, building)
                 count += 1
                 building.created = created
-        # Next building
+        # Next buildings
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/buildings/"):
                 continue
@@ -700,12 +766,16 @@ class Command(BaseCommand):
                     building.save()
         mark_as_done(Building, count, start_date)
 
-        # Holding
+        # Holdings
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/holdings/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Holdings"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated holding "{key}"')
                     all_duplicates.setdefault(Holding._meta.object_name, []).append(key)
@@ -733,12 +803,16 @@ class Command(BaseCommand):
                     holding.buildings.set([get_object(Building, key) for key in buildings])
         mark_as_done(Holding, count, start_date)
 
-        # Terrain
+        # Terrains
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/terrain_types/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Terrains"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated terrain "{key}"')
                     all_duplicates.setdefault(Terrain._meta.object_name, []).append(key)
@@ -772,10 +846,14 @@ class Command(BaseCommand):
 
         # Men-at-arms
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/men_at_arms_types/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Men-at-arms"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated men-at-arms "{key}"')
                     all_duplicates.setdefault(MenAtArms._meta.object_name, []).append(key)
@@ -847,10 +925,14 @@ class Command(BaseCommand):
         # Doctrines
         doctrines_by_group = {}
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/religion/doctrines/"):
                 continue
-            for group_key, group in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Doctrines"):
+            subdata = all_data[file]
+            for group_key, group in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if not group or not isinstance(group, dict):
                     continue
                 group_set = doctrines_by_group.setdefault(group_key, set())
@@ -888,6 +970,8 @@ class Command(BaseCommand):
                         for trait_type, values in traits.items():
                             values = values.items() if isinstance(values, dict) else ((val, 1) for val in values)
                             for trait, piety in values:
+                                if isinstance(piety, dict):
+                                    piety = piety["weight"]
                                 doctrine_trait, _ = DoctrineTrait.objects.update_or_create(
                                     doctrine=doctrine,
                                     trait=get_object(Trait, trait),
@@ -899,12 +983,16 @@ class Command(BaseCommand):
                                 keep_object(DoctrineTrait, doctrine_trait)
         mark_as_done(Doctrine, count, start_date)
 
-        # Religion
+        # Religions
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/religion/religions/"):
                 continue
-            for group_key, group in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Religions"):
+            subdata = all_data[file]
+            for group_key, group in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if not group or not isinstance(group, dict):
                     continue
                 group_doctrines = set(group.get("doctrine") or [])
@@ -964,13 +1052,17 @@ class Command(BaseCommand):
                         religion.men_at_arms.set([get_object(MenAtArms, maa) for maa in men_at_arms])
         mark_as_done(Religion, count, start_date)
 
-        # Province
+        # Province terrains
         province_terrains, default_terrain = {}, ""
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/province_terrain/"):
                 continue
+            files.append(file)
+        for file in tqdm(files, desc="Province terrains"):
+            subdata = all_data[file]
             default_terrain = subdata.get("default")
-            for key, item in subdata.items():
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if not key.isdigit():
                     continue
                 if isinstance(item, list):
@@ -1001,11 +1093,18 @@ class Command(BaseCommand):
             if from_key:
                 yield from_key, copy, prev_key
 
+        # Provinces
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/landed_titles/"):
                 continue
-            for key, item, liege_key in walk_titles(subdata):
+            files.append(file)
+        for file in tqdm(files, desc="Provinces"):
+            subdata = all_data[file]
+            total = len({key for key, *_ in walk_titles(subdata)})
+            all_titles = tqdm(walk_titles(subdata), total=total, desc=os.path.basename(file), leave=False)
+            for key, item, liege_key in all_titles:
                 if province_id := item.get("province"):
                     province_data = provinces.get(str(province_id)) or {}
                     province_data = {k: v for k, v in province_data.items() if not regex_date.fullmatch(k)}
@@ -1042,7 +1141,7 @@ class Command(BaseCommand):
         # Province history
         histories = {}
         count, start_date = 0, datetime.datetime.now()
-        for key, item in provinces.items():
+        for key, item in tqdm(provinces.items(), desc="Province history"):
             for date, subitem in item.items():
                 if date := regex_date.fullmatch(date) and convert_date(date, key):
                     pdx_date = to_pdx_date(date)
@@ -1077,13 +1176,18 @@ class Command(BaseCommand):
                     province_history.created = created
         mark_as_done(ProvinceHistory, count, start_date)
 
-        # Title
+        # Titles
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/landed_titles/"):
                 continue
-            item = {k: v for k, v in item.items() if not regex_date.fullmatch(k)}
-            for key, item, liege_key in walk_titles(subdata):
+            files.append(file)
+        for file in tqdm(files, desc="Titles"):
+            subdata = all_data[file]
+            total = len({key for key, *_ in walk_titles(subdata)})
+            all_titles = tqdm(walk_titles(subdata), total=total, desc=os.path.basename(file), leave=False)
+            for key, item, liege_key in all_titles:
                 province = get_object(Province, item.get("province"))
                 try:
                     if province and province.title.id != key:
@@ -1121,12 +1225,16 @@ class Command(BaseCommand):
                     title.save()
         mark_as_done(Title, count, start_date)
 
-        # Holy site
+        # Holy sites
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/religion/holy_sites/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Holy sites"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated holy site "{key}"')
                     all_duplicates.setdefault(HolySite._meta.object_name, []).append(key)
@@ -1148,10 +1256,14 @@ class Command(BaseCommand):
                 count += 1
                 holy_site.created = created
         # Holy site and religious head in religions
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/religion/religions/"):
                 continue
-            for group_key, group in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Religious heads/sites"):
+            subdata = all_data[file]
+            for group_key, group in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if not group or not isinstance(group, dict):
                     continue
                 for key, item in group.get("faiths", {}).items():
@@ -1173,10 +1285,14 @@ class Command(BaseCommand):
 
         # Nicknames
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/nicknames/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Nicknames"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated nickname "{key}"')
                     all_duplicates.setdefault(Nickname._meta.object_name, []).append(key)
@@ -1201,10 +1317,14 @@ class Command(BaseCommand):
 
         # Death reasons
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/deathreasons/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Death reasons"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated death reason "{key}"')
                     all_duplicates.setdefault(DeathReason._meta.object_name, []).append(key)
@@ -1235,12 +1355,16 @@ class Command(BaseCommand):
                 continue
             coat_of_arms.update(subdata)
 
-        # Dynasty
+        # Dynasties
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/dynasties/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Dynasties"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated dynasty "{key}"')
                     all_duplicates.setdefault(Dynasty._meta.object_name, []).append(key)
@@ -1265,12 +1389,16 @@ class Command(BaseCommand):
                 dynasty.created = created
         mark_as_done(Dynasty, count, start_date)
 
-        # House
+        # Houses
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/dynasty_houses/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Houses"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated house "{key}"')
                     all_duplicates.setdefault(House._meta.object_name, []).append(key)
@@ -1302,12 +1430,16 @@ class Command(BaseCommand):
                 continue
             dna.update(subdata)
 
-        # Character
+        # Characters
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("history/characters/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Characters"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated character "{key}"')
                     all_duplicates.setdefault(Character._meta.object_name, []).append(key)
@@ -1374,10 +1506,14 @@ class Command(BaseCommand):
         # Character history
         histories = {}
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("history/characters/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Character history"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
@@ -1390,12 +1526,16 @@ class Command(BaseCommand):
                         pdx_date = to_pdx_date(date)
                         if isinstance(subitem, list):
                             logger.warning(f'Duplicated character history "{key}" for "{pdx_date}"')
-                            all_duplicates.setdefault(CharacterHistory._meta.object_name, []).append((key, pdx_date))
+                            all_duplicates.setdefault(CharacterHistory._meta.object_name, []).append(
+                                (key, pdx_date)
+                            )
                             subitem = {k: v for i in subitem for k, v in i.items() if isinstance(i, dict)}
                         if not subitem:
                             continue
                         if previous_history := histories.get((key, date)):
-                            logger.warning(f'Duplicated character history "{key}" for "{pdx_date}" in different files')
+                            logger.warning(
+                                f'Duplicated character history "{key}" for "{pdx_date}" in different files'
+                            )
                             subitem = {**previous_history, **subitem}
                         histories[key, date] = subitem
                         effect = subitem.get("effect", {})
@@ -1422,42 +1562,58 @@ class Command(BaseCommand):
                             if isinstance(add_soulmate, dict):
                                 add_soulmate = add_soulmate.get("target")
                             scope, add_soulmate = add_soulmate.split(":")
-                            add_soulmate = get_object(Character, add_soulmate) if scope == "character" else None
+                            add_soulmate = (
+                                get_object(Character, add_soulmate) if scope == "character" else None
+                            )
                         if rem_soulmate := effect.get("remove_relation_soulmate"):
                             if isinstance(rem_soulmate, dict):
                                 rem_soulmate = rem_soulmate.get("target")
                             scope, rem_soulmate = rem_soulmate.split(":")
-                            rem_soulmate = get_object(Character, rem_soulmate) if scope == "character" else None
+                            rem_soulmate = (
+                                get_object(Character, rem_soulmate) if scope == "character" else None
+                            )
                         if add_best_friend := effect.get("set_relation_best_friend"):
                             if isinstance(add_best_friend, dict):
                                 add_best_friend = add_best_friend.get("target")
                             scope, add_best_friend = add_best_friend.split(":")
-                            add_best_friend = get_object(Character, add_best_friend) if scope == "character" else None
+                            add_best_friend = (
+                                get_object(Character, add_best_friend) if scope == "character" else None
+                            )
                         if rem_best_friend := effect.get("remove_relation_best_friend"):
                             if isinstance(rem_best_friend, dict):
                                 rem_best_friend = rem_best_friend.get("target")
                             scope, rem_best_friend = rem_best_friend.split(":")
-                            rem_best_friend = get_object(Character, rem_best_friend) if scope == "character" else None
+                            rem_best_friend = (
+                                get_object(Character, rem_best_friend) if scope == "character" else None
+                            )
                         if add_nemesis := effect.get("set_relation_nemesis"):
                             if isinstance(add_nemesis, dict):
                                 add_nemesis = add_nemesis.get("target")
                             scope, add_nemesis = add_nemesis.split(":")
-                            add_nemesis = get_object(Character, add_nemesis) if scope == "character" else None
+                            add_nemesis = (
+                                get_object(Character, add_nemesis) if scope == "character" else None
+                            )
                         if rem_nemesis := effect.get("remove_relation_nemesis"):
                             if isinstance(rem_nemesis, dict):
                                 rem_nemesis = rem_nemesis.get("target")
                             scope, rem_nemesis = rem_nemesis.split(":")
-                            rem_nemesis = get_object(Character, rem_nemesis) if scope == "character" else None
+                            rem_nemesis = (
+                                get_object(Character, rem_nemesis) if scope == "character" else None
+                            )
                         if add_guardian := effect.get("set_relation_guardian"):
                             if isinstance(add_guardian, dict):
                                 add_guardian = add_guardian.get("target")
                             scope, add_guardian = add_guardian.split(":")
-                            add_guardian = get_object(Character, add_guardian) if scope == "character" else None
+                            add_guardian = (
+                                get_object(Character, add_guardian) if scope == "character" else None
+                            )
                         if rem_guardian := effect.get("remove_relation_guardian"):
                             if isinstance(rem_guardian, dict):
                                 rem_guardian = rem_guardian.get("target")
                             scope, rem_guardian = rem_guardian.split(":")
-                            rem_guardian = get_object(Character, rem_guardian) if scope == "character" else None
+                            rem_guardian = (
+                                get_object(Character, rem_guardian) if scope == "character" else None
+                            )
                         history, created = CharacterHistory.objects.update_or_create(
                             character=character,
                             date=date,
@@ -1516,7 +1672,11 @@ class Command(BaseCommand):
                                         target = target.get("target")
                                     values.append(target.split(":"))
                                 field.set(
-                                    [get_object(Character, target) for scope, target in values if scope == "character"]
+                                    [
+                                        get_object(Character, target)
+                                        for scope, target in values
+                                        if scope == "character"
+                                    ]
                                 )
                         if traits := subitem.get("trait"):
                             traits = traits if isinstance(traits, list) else [traits]
@@ -1528,12 +1688,16 @@ class Command(BaseCommand):
                     character.save()
         mark_as_done(CharacterHistory, count, start_date)
 
-        # Law
+        # Laws
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/laws/"):
                 continue
-            for group_key, group in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Laws"):
+            subdata = all_data[file]
+            for group_key, group in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if not group or not isinstance(group, dict):
                     continue
                 for key, item in group.items():
@@ -1562,10 +1726,14 @@ class Command(BaseCommand):
         # Title history
         histories = {}
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("history/titles/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Title history"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated title "{key}"')
                     all_duplicates.setdefault(Title._meta.object_name, []).append(key)
@@ -1618,12 +1786,16 @@ class Command(BaseCommand):
                             history.succession_laws.set([get_object(Law, law) for law in succession_laws])
         mark_as_done(TitleHistory, count, start_date)
 
-        # Casus belli group
+        # Casus belli groups
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/casus_belli_groups/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Casus belli groups"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated casus belli group "{key}"')
                     all_duplicates.setdefault(Heritage._meta.object_name, []).append(key)
@@ -1646,10 +1818,14 @@ class Command(BaseCommand):
 
         # Casus belli
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/casus_belli_types/"):
                 continue
-            for key, item in subdata.items():
+            files.append(file)
+        for file in tqdm(files, desc="Casus belli"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     logger.warning(f'Duplicated casus belli "{key}"')
                     all_duplicates.setdefault(Heritage._meta.object_name, []).append(key)
@@ -1676,14 +1852,18 @@ class Command(BaseCommand):
                 casus_belli.created = created
         mark_as_done(CasusBelli, count, start_date)
 
-        # War
+        # Wars
         count, start_date = 0, datetime.datetime.now()
+        files = []
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("history/wars/"):
                 continue
+            files.append(file)
+        for file in tqdm(files, desc="Wars"):
+            subdata = all_data[file]
             wars = subdata.get("war")
             wars = wars if isinstance(wars, list) else [wars]
-            for item in wars:
+            for item in tqdm(wars, desc=os.path.basename(file), leave=False):
                 if not isinstance(item, dict):
                     continue
                 war, created = War.objects.import_update_or_create(
@@ -1710,7 +1890,7 @@ class Command(BaseCommand):
         # Mass cleaning
         all_deleted = collections.Counter()
         if purge:
-            for model, keys in all_objects.items():
+            for model, keys in tqdm(all_objects.items(), desc=f"Purge"):
                 deleted, total_deleted = model.objects.exclude(id__in=keys).delete()
                 all_deleted.update(total_deleted or {})
             for key, value in sorted(all_deleted.items()):

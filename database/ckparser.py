@@ -41,7 +41,7 @@ regex_comment = re.compile(r"(?P<space>\s*)#+(?P<comment>.*)$", re.MULTILINE)
 # Regex for fixing blocks with no equal sign
 regex_block = re.compile(r"^([^\s\{\=]+)\s*\{\s*$", re.MULTILINE)
 # Regex to remove "list" prefix
-regex_list = re.compile(r"\s*=\s*list\s*([\{\"\|])", re.MULTILINE)
+regex_list = re.compile(r"\s*=\s*list\s+([\{\"\|])", re.MULTILINE)
 # Regex for color blocks (color = [rgb|hsv] { x y z })
 regex_color = re.compile(r"=\s*(?P<type>\w+)\s*{")
 # Regex to parse items with format key=value
