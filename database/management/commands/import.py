@@ -6,9 +6,9 @@ import logging
 import os
 import re
 from functools import partial
-from tqdm.auto import tqdm
 
 from django.core.management import BaseCommand
+from tqdm.auto import tqdm
 
 from database.ckparser import convert_color, convert_date, parse_all_files, parse_all_locales, parse_file, variables
 from database.models import (
@@ -183,9 +183,7 @@ class Command(BaseCommand):
                     break
                 all_data.update(parse_all_files(mod_path, keep_data=True, save=save))
             all_data = {
-                key.lower(): value
-                for key, value in sorted(all_data.items())
-                if unused or "unused" not in key.lower()
+                key.lower(): value for key, value in sorted(all_data.items()) if unused or "unused" not in key.lower()
             }
             with open("_all_data.json", "w") as file:
                 json.dump(all_data, file, indent=4)
@@ -592,9 +590,7 @@ class Command(BaseCommand):
                         if not isinstance(item, dict):
                             continue
                         if previous_history := histories.get((key, date)):
-                            logger.warning(
-                                f'Duplicated {field} history "{key}" for "{pdx_date}" in different files'
-                            )
+                            logger.warning(f'Duplicated {field} history "{key}" for "{pdx_date}" in different files')
                             item = {**previous_history, **item}
                         histories[key, date] = item
                         history, created = history_model.objects.update_or_create(
@@ -1526,16 +1522,12 @@ class Command(BaseCommand):
                         pdx_date = to_pdx_date(date)
                         if isinstance(subitem, list):
                             logger.warning(f'Duplicated character history "{key}" for "{pdx_date}"')
-                            all_duplicates.setdefault(CharacterHistory._meta.object_name, []).append(
-                                (key, pdx_date)
-                            )
+                            all_duplicates.setdefault(CharacterHistory._meta.object_name, []).append((key, pdx_date))
                             subitem = {k: v for i in subitem for k, v in i.items() if isinstance(i, dict)}
                         if not subitem:
                             continue
                         if previous_history := histories.get((key, date)):
-                            logger.warning(
-                                f'Duplicated character history "{key}" for "{pdx_date}" in different files'
-                            )
+                            logger.warning(f'Duplicated character history "{key}" for "{pdx_date}" in different files')
                             subitem = {**previous_history, **subitem}
                         histories[key, date] = subitem
                         effect = subitem.get("effect", {})
@@ -1562,58 +1554,42 @@ class Command(BaseCommand):
                             if isinstance(add_soulmate, dict):
                                 add_soulmate = add_soulmate.get("target")
                             scope, add_soulmate = add_soulmate.split(":")
-                            add_soulmate = (
-                                get_object(Character, add_soulmate) if scope == "character" else None
-                            )
+                            add_soulmate = get_object(Character, add_soulmate) if scope == "character" else None
                         if rem_soulmate := effect.get("remove_relation_soulmate"):
                             if isinstance(rem_soulmate, dict):
                                 rem_soulmate = rem_soulmate.get("target")
                             scope, rem_soulmate = rem_soulmate.split(":")
-                            rem_soulmate = (
-                                get_object(Character, rem_soulmate) if scope == "character" else None
-                            )
+                            rem_soulmate = get_object(Character, rem_soulmate) if scope == "character" else None
                         if add_best_friend := effect.get("set_relation_best_friend"):
                             if isinstance(add_best_friend, dict):
                                 add_best_friend = add_best_friend.get("target")
                             scope, add_best_friend = add_best_friend.split(":")
-                            add_best_friend = (
-                                get_object(Character, add_best_friend) if scope == "character" else None
-                            )
+                            add_best_friend = get_object(Character, add_best_friend) if scope == "character" else None
                         if rem_best_friend := effect.get("remove_relation_best_friend"):
                             if isinstance(rem_best_friend, dict):
                                 rem_best_friend = rem_best_friend.get("target")
                             scope, rem_best_friend = rem_best_friend.split(":")
-                            rem_best_friend = (
-                                get_object(Character, rem_best_friend) if scope == "character" else None
-                            )
+                            rem_best_friend = get_object(Character, rem_best_friend) if scope == "character" else None
                         if add_nemesis := effect.get("set_relation_nemesis"):
                             if isinstance(add_nemesis, dict):
                                 add_nemesis = add_nemesis.get("target")
                             scope, add_nemesis = add_nemesis.split(":")
-                            add_nemesis = (
-                                get_object(Character, add_nemesis) if scope == "character" else None
-                            )
+                            add_nemesis = get_object(Character, add_nemesis) if scope == "character" else None
                         if rem_nemesis := effect.get("remove_relation_nemesis"):
                             if isinstance(rem_nemesis, dict):
                                 rem_nemesis = rem_nemesis.get("target")
                             scope, rem_nemesis = rem_nemesis.split(":")
-                            rem_nemesis = (
-                                get_object(Character, rem_nemesis) if scope == "character" else None
-                            )
+                            rem_nemesis = get_object(Character, rem_nemesis) if scope == "character" else None
                         if add_guardian := effect.get("set_relation_guardian"):
                             if isinstance(add_guardian, dict):
                                 add_guardian = add_guardian.get("target")
                             scope, add_guardian = add_guardian.split(":")
-                            add_guardian = (
-                                get_object(Character, add_guardian) if scope == "character" else None
-                            )
+                            add_guardian = get_object(Character, add_guardian) if scope == "character" else None
                         if rem_guardian := effect.get("remove_relation_guardian"):
                             if isinstance(rem_guardian, dict):
                                 rem_guardian = rem_guardian.get("target")
                             scope, rem_guardian = rem_guardian.split(":")
-                            rem_guardian = (
-                                get_object(Character, rem_guardian) if scope == "character" else None
-                            )
+                            rem_guardian = get_object(Character, rem_guardian) if scope == "character" else None
                         history, created = CharacterHistory.objects.update_or_create(
                             character=character,
                             date=date,
@@ -1672,11 +1648,7 @@ class Command(BaseCommand):
                                         target = target.get("target")
                                     values.append(target.split(":"))
                                 field.set(
-                                    [
-                                        get_object(Character, target)
-                                        for scope, target in values
-                                        if scope == "character"
-                                    ]
+                                    [get_object(Character, target) for scope, target in values if scope == "character"]
                                 )
                         if traits := subitem.get("trait"):
                             traits = traits if isinstance(traits, list) else [traits]
