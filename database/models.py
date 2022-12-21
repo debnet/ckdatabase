@@ -286,7 +286,8 @@ class Character(BaseModel, BaseCharacter):
             )
             for relation, field in relations_m2m:
                 effect[relation] = [f"character:{c}" for c in field.order_by("id").values_list("id", flat=True)]
-            for key, value in raw_effect.items():
+            raw_effect = dict.update(*raw_effect) if isinstance(raw_effect, list) else raw_effect
+            for key, value in (raw_effect or {}).items():
                 if key in subdata:
                     continue
                 effect[key] = value
