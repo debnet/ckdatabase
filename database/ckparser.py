@@ -78,7 +78,8 @@ def convert_color(color):
     if any(isinstance(c, float) for c in color):
         color = [round(c * 255) for c in color]
     r, g, b = (hex(int(c)).split("x")[-1] for c in color[:3])
-    return f"{r:02}{g:02}{b:02}"
+    print(r, g, b)
+    return f"{r:>02}{g:>02}{b:>02}"
 
 
 def convert_date(date, key=None):
@@ -515,7 +516,7 @@ list_keys_rules = [
     re.compile(r"^\w+_accessory$", re.IGNORECASE),
     re.compile(r"^complexion$", re.IGNORECASE),
     # Plural keys
-    re.compile(r"^(?!(e_|k_|d_|c_|b_))[^\.\:\s]+s$", re.IGNORECASE),
+    re.compile(r"^(?!(e_|k_|d_|c_|b_|this))[^\.\:\s]+s$", re.IGNORECASE),
     # GFX
     re.compile(r"^\w+_gfx$", re.IGNORECASE),
     # Object=
