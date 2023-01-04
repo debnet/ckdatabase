@@ -78,7 +78,6 @@ def convert_color(color):
     if any(isinstance(c, float) for c in color):
         color = [round(c * 255) for c in color]
     r, g, b = (hex(int(c)).split("x")[-1] for c in color[:3])
-    print(r, g, b)
     return f"{r:>02}{g:>02}{b:>02}"
 
 
