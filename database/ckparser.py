@@ -552,13 +552,15 @@ def revert(obj, from_key=None, prev_key=None, depth=-1, sep="\t"):
             if from_key or depth > 0:
                 lines.append(f"{tabs}}}")
     elif isinstance(obj, list):
-        is_list = None
         # Only for colors
-        if from_key and isinstance(obj, list) and len(obj) > 3 and obj[0] in ("rgb", "hsv", "hls", "hsv360"):
-            from_key = f"{from_key} {obj[0]}"
-            obj = obj[1:]
-            is_list = True
-        if from_key and not is_list and not any(regex.match(from_key) for regex in list_keys_rules):
+        if from_key == "color" and isinstance(obj, list):
+            prefix = f"{tabs}{from_key} = {{"
+            if len(obj) == 4 and isinstance(obj[0], str):
+                prefix = f"{tabs}{from_key} {obj[0]} = {{"
+                obj = obj[1:]
+            values = " ".join(map(str, obj))
+            lines.append(f"{prefix} {values} }}")
+        elif from_key and not any(regex.match(from_key) for regex in list_keys_rules):
             for value in obj:
                 lines.extend(revert(value, from_key=from_key, prev_key=prev_key, depth=depth))
         else:
