@@ -1836,7 +1836,7 @@ class Command(BaseCommand):
             wars = subdata.get("war")
             wars = wars if isinstance(wars, list) else [wars]
             for item in tqdm(wars, desc=os.path.basename(file), leave=False):
-                if not isinstance(item, dict):
+                if not isinstance(item, dict) and not item.get("name"):
                     continue
                 war, created = War.objects.import_update_or_create(
                     id=item.get("name"),
