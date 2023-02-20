@@ -559,7 +559,7 @@ def revert(obj, from_key=None, prev_key=None, depth=-1, sep="\t"):
             if from_key == "color" and len(obj) == 4 and isinstance(obj[0], str):
                 prefix = f"{tabs}{from_key} {obj[0]} = {{"
                 obj = obj[1:]
-            values = " ".join(map(str, obj))
+            values = " ".join(map(str, revert_value(obj, from_key=from_key, prev_key=prev_key)))
             lines.append(f"{prefix} {values} }}")
         elif from_key and not any(regex.match(from_key) for regex in list_keys_rules):
             for value in obj:
