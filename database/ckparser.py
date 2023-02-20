@@ -553,9 +553,10 @@ def revert(obj, from_key=None, prev_key=None, depth=-1, sep="\t"):
                 lines.append(f"{tabs}}}")
     elif isinstance(obj, list):
         # Only for colors
-        if from_key == "color" and isinstance(obj, list):
+        if isinstance(obj, list) and not any(isinstance(o, (dict, list)) for o in obj):
             prefix = f"{tabs}{from_key} = {{"
-            if len(obj) == 4 and isinstance(obj[0], str):
+            # Only for color modes
+            if from_key == "color" and len(obj) == 4 and isinstance(obj[0], str):
                 prefix = f"{tabs}{from_key} {obj[0]} = {{"
                 obj = obj[1:]
             values = " ".join(map(str, obj))
