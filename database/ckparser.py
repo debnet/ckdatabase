@@ -3,6 +3,7 @@ import argparse
 import ast
 import colorsys
 import datetime
+import functools
 import json
 import logging
 import os
@@ -24,7 +25,7 @@ booleans = {"yes": True, "no": False}
 # Tags which must be aggregate as a list in JSON (don't hesitate to add more if needed)
 forced_list_keys = []  # "if", "else_if", "else", "not", "or", "and", "nor", "nand", "root", "from", "prev"
 # Tags or tag couples which be forced as a string in revert parser
-forced_string_keys = []
+forced_string_keys = [("genes", None)]
 # Special keywords
 keywords = ("scripted_trigger", "scripted_effect")
 # Variables collected in files
@@ -188,9 +189,9 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None, 
                     # Change current node for next lines
                     nodes.append((key, item))
                     continue
-                elif value.lower() in booleans:
+                elif (val := booleans.get(value.lower())) is not None:
                     # Convert to boolean
-                    value = booleans[value]
+                    value = val
                 elif value:
                     # Try to convert value to Python value
                     try:
@@ -552,14 +553,14 @@ def revert(obj, from_key=None, prev_key=None, depth=-1, sep="\t"):
             if from_key or depth > 0:
                 lines.append(f"{tabs}}}")
     elif isinstance(obj, list):
-        # Only for colors
-        if isinstance(obj, list) and not any(isinstance(o, (dict, list)) for o in obj):
+        if not any(isinstance(o, (dict, list)) for o in obj):
             prefix = f"{tabs}{from_key} = {{"
             # Only for color modes
             if from_key == "color" and len(obj) == 4 and isinstance(obj[0], str):
                 prefix = f"{tabs}{from_key} {obj[0]} = {{"
                 obj = obj[1:]
-            values = " ".join(map(str, revert_value(obj, from_key=from_key, prev_key=prev_key)))
+            func = functools.partial(revert_value, from_key=from_key, prev_key=prev_key)
+            values = " ".join(map(str, map(func, obj)))
             lines.append(f"{prefix} {values} }}")
         elif from_key and not any(regex.match(from_key) for regex in list_keys_rules):
             for value in obj:
@@ -608,6 +609,7 @@ def revert_value(value, from_key=None, prev_key=None):
             or (value.startswith("$") and value.endswith("$"))
             or from_key in forced_string_keys
             or (prev_key and (prev_key, from_key) in forced_string_keys)
+            or (prev_key and (prev_key, None) in forced_string_keys)
         ):
             value = value.replace('"', '\\"')
             return f'"{value}"'
