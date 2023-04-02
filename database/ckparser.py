@@ -516,7 +516,7 @@ list_keys_rules = [
     re.compile(r"^\w+_accessory$", re.IGNORECASE),
     re.compile(r"^complexion$", re.IGNORECASE),
     # Plural keys
-    re.compile(r"^(?!(e_|k_|d_|c_|b_|this))[^\.\:\s]+s$", re.IGNORECASE),
+    re.compile(r"^(?!(e_|k_|d_|c_|b_))[^\.\:\s]+s$", re.IGNORECASE),
     # GFX
     re.compile(r"^\w+_gfx$", re.IGNORECASE),
     # Object=
@@ -553,7 +553,10 @@ def revert(obj, from_key=None, prev_key=None, depth=-1, sep="\t"):
             if from_key or depth > 0:
                 lines.append(f"{tabs}}}")
     elif isinstance(obj, list):
-        if not any(isinstance(o, (dict, list)) for o in obj):
+        if from_key and (from_key.lower() == "this" or not any(regex.match(from_key) for regex in list_keys_rules)):
+            for value in obj:
+                lines.extend(revert(value, from_key=from_key, prev_key=prev_key, depth=depth))
+        elif not any(isinstance(o, (dict, list)) for o in obj):
             prefix = f"{tabs}{from_key} = {{"
             # Only for color modes
             if from_key == "color" and len(obj) == 4 and isinstance(obj[0], str):
@@ -562,9 +565,6 @@ def revert(obj, from_key=None, prev_key=None, depth=-1, sep="\t"):
             func = functools.partial(revert_value, from_key=from_key, prev_key=prev_key)
             values = " ".join(map(str, map(func, obj)))
             lines.append(f"{prefix} {values} }}")
-        elif from_key and not any(regex.match(from_key) for regex in list_keys_rules):
-            for value in obj:
-                lines.extend(revert(value, from_key=from_key, prev_key=prev_key, depth=depth))
         else:
             if from_key:
                 key = str(from_key).replace("|", " ")
