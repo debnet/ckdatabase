@@ -83,8 +83,20 @@ class Command(BaseCommand):
         parser.add_argument("--unused", action="store_true", help="Include unused files")
         parser.add_argument("--reset", action="store_true", help="Reset locales and parsed files")
         parser.add_argument("--purge", action="store_true", help="Purge non created/updated records")
+        parser.add_argument("--skip-locales", action="store_true", help="Skip locales")
 
-    def handle(self, base_path, mod_path, save=False, unused=False, reset=False, purge=False, *args, **options):
+    def handle(
+        self,
+        base_path,
+        mod_path,
+        save=False,
+        unused=False,
+        reset=False,
+        purge=False,
+        skip_locales=False,
+        *args,
+        **options,
+    ):
         global_start = datetime.datetime.now()
         all_objects, all_stats, all_missings, all_duplicates = {}, {}, {}, {}
 
@@ -158,10 +170,11 @@ class Command(BaseCommand):
                     locale = locale.replace(key, all_locales.get(sublocale) or key)
             return locale
 
-        def get_value(item):
-            if isinstance(item, dict) and "@type" in item:
-                return item.get("@result") or None
-            return item
+        def get_value(item, key):
+            value = item.get(key)
+            if isinstance(value, dict) and "@type" in value:
+                return value.get("@result") or None
+            return value
 
         # Parsing
         if not reset and os.path.exists("_all_data.json"):
@@ -200,7 +213,7 @@ class Command(BaseCommand):
         if not reset and os.path.exists("_all_locales.json"):
             with open("_all_locales.json") as file:
                 all_locales = json.load(file)
-            if os.path.exists("_mod_locales.json"):
+            if mod_path and os.path.exists("_mod_locales.json"):
                 with open("_mod_locales.json") as file:
                     current_locales = json.load(file)
         else:
@@ -209,23 +222,293 @@ class Command(BaseCommand):
             if mod_path:
                 current_locales = parse_all_locales(mod_path)
                 all_locales.update(current_locales)
-            with open("_mod_locales.json", "w") as file:
-                json.dump(current_locales, file, indent=4, sort_keys=True)
+            if mod_path:
+                with open("_mod_locales.json", "w") as file:
+                    json.dump(current_locales, file, indent=4, sort_keys=True)
             with open("_all_locales.json", "w") as file:
                 json.dump(all_locales, file, indent=4, sort_keys=True)
             with open("_all_locales.json") as file:
                 all_locales = json.load(file)
-        for key, value in tqdm(current_locales.items(), desc="Locales"):
-            localization, created = Localization.objects.import_update_or_create(
-                key=key,
-                language="en",
-                defaults=dict(
-                    text=value,
-                ),
-            )
-            keep_object(Localization, localization)
-        total_time = (datetime.datetime.now() - start_date).total_seconds()
-        logger.info(f"Parsing locales in {total_time:0.2f}s")
+        if not skip_locales:
+            for key, value in tqdm(current_locales.items(), desc="Locales"):
+                localization, created = Localization.objects.import_update_or_create(
+                    key=key,
+                    language="en",
+                    defaults=dict(
+                        text=value,
+                    ),
+                )
+                keep_object(Localization, localization)
+            total_time = (datetime.datetime.now() - start_date).total_seconds()
+            logger.info(f"Parsing locales in {total_time:0.2f}s")
+
+        # Terrains
+        count, start_date = 0, datetime.datetime.now()
+        files = []
+        for file, subdata in all_data.items():
+            if not subdata or not file.startswith("common/terrain_types/"):
+                continue
+            files.append(file)
+        for file in tqdm(files, desc="Terrains"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
+                    logger.warning(f'Duplicated terrain "{key}"')
+                    all_duplicates.setdefault(Terrain._meta.object_name, []).append(key)
+                    item = {k: v for d in item for k, v in d.items()}
+                if not isinstance(item, dict):
+                    logger.debug(f'Unexpected data for terrain "{key}": "{item}"')
+                    continue
+                terrain, created = Terrain.objects.import_update_or_create(
+                    id=key,
+                    defaults=dict(
+                        name=get_locale(key) or get_locale(f"{key}_terrain"),
+                        color=convert_color(item.get("color")),
+                        movement_speed=get_value(item, "movement_speed"),
+                        combat_width=get_value(item, "combat_width"),
+                        audio_parameter=get_value(item, "audio_parameter"),
+                        supply_limit=item.get("province_modifier", {}).get("supply_limit_mult"),
+                        development_growth=item.get("province_modifier", {}).get("development_growth_factor"),
+                        attacker_hard_casualty=item.get("attacker_modifier", {}).get("hard_casualty_modifier"),
+                        attacker_retreat_losses=item.get("attacker_modifier", {}).get("retreat_losses"),
+                        defender_hard_casualty=item.get("defender_modifier", {}).get("hard_casualty_modifier"),
+                        defender_retreat_losses=item.get("defender_modifier", {}).get("retreat_losses"),
+                        defender_advantage=item.get("defender_combat_effects", {}).get("advantage"),
+                        raw_data=item,
+                        exists=True,
+                    ),
+                )
+                keep_object(Terrain, terrain)
+                count += 1
+                terrain.created = created
+        mark_as_done(Terrain, count, start_date)
+
+        # Men-at-arms
+        count, start_date = 0, datetime.datetime.now()
+        files = []
+        for file, subdata in all_data.items():
+            if not subdata or not file.startswith("common/men_at_arms_types/"):
+                continue
+            files.append(file)
+        for file in tqdm(files, desc="Men-at-arms"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
+                    logger.warning(f'Duplicated men-at-arms "{key}"')
+                    all_duplicates.setdefault(MenAtArms._meta.object_name, []).append(key)
+                    item = {k: v for d in item for k, v in d.items()}
+                if not isinstance(item, dict):
+                    logger.debug(f'Unexpected data for men-at-arms "{key}": "{item}"')
+                    continue
+                buy_cost = get_value(item.get("buy_cost", {}), "gold")
+                if isinstance(buy_cost, str):
+                    buy_cost = None
+                low_maintenance_cost = get_value(item.get("low_maintenance_cost", {}), "gold")
+                if isinstance(low_maintenance_cost, str):
+                    low_maintenance_cost = None
+                high_maintenance_cost = get_value(item.get("high_maintenance_cost", {}), "gold")
+                if isinstance(high_maintenance_cost, str):
+                    high_maintenance_cost = None
+                men_at_arms, created = MenAtArms.objects.import_update_or_create(
+                    id=key,
+                    defaults=dict(
+                        name=get_locale(key) or get_locale(f"{key}_name"),
+                        description=get_locale(f"{key}_flavor"),
+                        type=get_value(item, "type"),
+                        buy_cost=buy_cost,
+                        low_maintenance_cost=low_maintenance_cost,
+                        high_maintenance_cost=high_maintenance_cost,
+                        damage=get_value(item, "damage"),
+                        toughness=get_value(item, "toughness"),
+                        pursuit=get_value(item, "pursuit"),
+                        screen=get_value(item, "screen"),
+                        siege_tier=get_value(item, "siege_tier"),
+                        siege_value=get_value(item, "siege_value"),
+                        stack=get_value(item, "stack"),
+                        raw_data=item,
+                        exists=True,
+                    ),
+                )
+                keep_object(MenAtArms, men_at_arms)
+                count += 1
+                men_at_arms.created = created
+                if men_at_arms.wip:
+                    continue
+                # Terrain modifiers
+                if modifiers := item.get("terrain_bonus"):
+                    for terrain, modifiers in modifiers.items():
+                        terrain_modifier, _ = TerrainModifier.objects.update_or_create(
+                            men_at_arms=men_at_arms,
+                            terrain=get_object(Terrain, terrain),
+                            defaults=dict(
+                                damage=modifiers.get("damage"),
+                                toughness=modifiers.get("toughness"),
+                                pursuit=modifiers.get("pursuit"),
+                                screen=modifiers.get("screen"),
+                            ),
+                        )
+                        keep_object(TerrainModifier, terrain_modifier)
+                # Counters
+                if counters := item.get("counters"):
+                    for type, factor in counters.items():
+                        counter, _ = Counter.objects.update_or_create(
+                            men_at_arms=men_at_arms,
+                            type=type,
+                            defaults=dict(
+                                factor=factor,
+                            ),
+                        )
+                        keep_object(Counter, counter)
+        mark_as_done(MenAtArms, count, start_date)
+
+        # Casus belli groups
+        count, start_date = 0, datetime.datetime.now()
+        files = []
+        for file, subdata in all_data.items():
+            if not subdata or not file.startswith("common/casus_belli_groups/"):
+                continue
+            files.append(file)
+        for file in tqdm(files, desc="Casus belli groups"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
+                    logger.warning(f'Duplicated casus belli group "{key}"')
+                    all_duplicates.setdefault(Heritage._meta.object_name, []).append(key)
+                    item = {k: v for d in item for k, v in d.items()}
+                if not isinstance(item, dict):
+                    continue
+                casus_belli_group, created = CasusBelliGroup.objects.import_update_or_create(
+                    id=key,
+                    defaults=dict(
+                        name=get_locale(key) or get_locale(f"{key}_name"),
+                        description=get_locale(f"{key}_desc"),
+                        raw_data=item,
+                        exists=True,
+                    ),
+                )
+                keep_object(CasusBelliGroup, casus_belli_group)
+                count += 1
+                casus_belli_group.created = created
+        mark_as_done(CasusBelliGroup, count, start_date)
+
+        # Casus belli
+        count, start_date = 0, datetime.datetime.now()
+        files = []
+        for file, subdata in all_data.items():
+            if not subdata or not file.startswith("common/casus_belli_types/"):
+                continue
+            files.append(file)
+        for file in tqdm(files, desc="Casus belli"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
+                    logger.warning(f'Duplicated casus belli "{key}"')
+                    all_duplicates.setdefault(Heritage._meta.object_name, []).append(key)
+                    item = {k: v for d in item for k, v in d.items()}
+                if not isinstance(item, dict):
+                    continue
+                casus_belli, created = CasusBelli.objects.import_update_or_create(
+                    id=key,
+                    defaults=dict(
+                        name=get_locale(key) or get_locale(f"{key}_name"),
+                        description=get_locale(item.get("war_name") or f"{key}_desc"),
+                        group=get_object(CasusBelliGroup, item.get("group")),
+                        target_titles=get_value(item, "target_titles") or "",
+                        target_title_tier=get_value(item, "target_title_tier") or "",
+                        raw_data=item,
+                        exists=True,
+                    ),
+                )
+                keep_object(CasusBelli, casus_belli)
+                count += 1
+                casus_belli.created = created
+        mark_as_done(CasusBelli, count, start_date)
+
+        # Laws
+        count, start_date = 0, datetime.datetime.now()
+        files = []
+        for file, subdata in all_data.items():
+            if not subdata or not file.startswith("common/laws/"):
+                continue
+            files.append(file)
+        for file in tqdm(files, desc="Laws"):
+            subdata = all_data[file]
+            for group_key, group in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
+                if not group or not isinstance(group, dict):
+                    continue
+                for key, item in group.items():
+                    if isinstance(item, list) and all(isinstance(i, dict) for i in item):
+                        logger.warning(f'Duplicated law "{key}"')
+                        all_duplicates.setdefault(Law._meta.object_name, []).append(key)
+                        item = {k: v for d in item for k, v in d.items()}
+                    if not isinstance(item, dict):
+                        logger.debug(f'Unexpected data for law "{key}": "{item}"')
+                        continue
+                    law, created = Law.objects.import_update_or_create(
+                        id=key,
+                        defaults=dict(
+                            name=get_locale(key) or get_locale(f"{key}_name"),
+                            description=get_locale(f"{key}_effects") or get_locale(f"{key}_desc"),
+                            group=group.get("flag", group_key),
+                            raw_data=item,
+                            exists=True,
+                        ),
+                    )
+                    keep_object(Law, law)
+                    count += 1
+                    law.created = created
+        mark_as_done(Law, count, start_date)
+
+        # Buildings
+        count, start_date = 0, datetime.datetime.now()
+        files = []
+        for file, subdata in all_data.items():
+            if not subdata or not file.startswith("common/buildings/"):
+                continue
+            files.append(file)
+        for file in tqdm(files, desc="Buildings"):
+            subdata = all_data[file]
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
+                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
+                    logger.warning(f'Duplicated building "{key}"')
+                    all_duplicates.setdefault(Building._meta.object_name, []).append(key)
+                    item = {k: v for d in item for k, v in d.items()}
+                if not isinstance(item, dict):
+                    logger.debug(f'Unexpected data for building "{key}": "{item}"')
+                    continue
+                building, created = Building.objects.import_update_or_create(
+                    id=key,
+                    defaults=dict(
+                        name=get_locale(f"building_{key}"),
+                        description=get_locale(f"building_{key}_desc"),
+                        type=get_value(item, "type") or "",
+                        construction_time=get_value(item, "construction_time"),
+                        cost_gold=get_value(item, "cost_gold"),
+                        cost_prestige=get_value(item, "cost_prestige"),
+                        levy=get_value(item, "cost_gold"),
+                        max_garrison=get_value(item, "max_garrison"),
+                        garrison_reinforcement_factor=get_value(item, "garrison_reinforcement_factor"),
+                        raw_data=item,
+                        exists=True,
+                    ),
+                )
+                keep_object(Building, building)
+                count += 1
+                building.created = created
+        # Next buildings
+        for file, subdata in all_data.items():
+            if not subdata or not file.startswith("common/buildings/"):
+                continue
+            for key, item in subdata.items():
+                if not isinstance(item, dict) or not item.get("next_building"):
+                    continue
+                building = get_object(Building, key)
+                if building.wip:
+                    continue
+                building.next_building = get_object(Building, item["next_building"])
+                if building.modified:
+                    building.save()
+        mark_as_done(Building, count, start_date)
 
         # Ethos
         count, start_date = 0, datetime.datetime.now()
@@ -397,7 +680,7 @@ class Command(BaseCommand):
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
                         description=get_locale(f"{key}_desc"),
-                        category=item.get("category"),
+                        category=get_value(item, "category"),
                         raw_data=item,
                         exists=True,
                     ),
@@ -429,7 +712,7 @@ class Command(BaseCommand):
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
                         description=get_locale(f"{key}_desc"),
-                        year=item.get("year"),
+                        year=get_value(item, "year"),
                         raw_data=item,
                         exists=True,
                     ),
@@ -461,12 +744,24 @@ class Command(BaseCommand):
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
                         description=get_locale(f"{key}_desc"),
-                        group=item.get("group"),
+                        group=get_value(item, "group"),
                         era=get_object(Era, item.get("culture_era")),
                         raw_data=item,
                         exists=True,
                     ),
                 )
+                if laws := item.get("unlock_law"):
+                    laws = laws if isinstance(laws, list) else [laws]
+                    innovation.unlock_laws.set([get_object(Law, key) for key in laws])
+                if men_at_arms := item.get("unlock_maa"):
+                    men_at_arms = men_at_arms if isinstance(men_at_arms, list) else [men_at_arms]
+                    innovation.unlock_men_at_arms.set([get_object(MenAtArms, key) for key in men_at_arms])
+                if buildings := item.get("unlock_building"):
+                    buildings = buildings if isinstance(buildings, list) else [buildings]
+                    innovation.unlock_buildings.set([get_object(Building, key) for key in buildings])
+                if casus_belli := item.get("unlock_casus_belli"):
+                    casus_belli = casus_belli if isinstance(casus_belli, list) else [casus_belli]
+                    innovation.unlock_casus_belli.set([get_object(CasusBelli, key) for key in casus_belli])
                 keep_object(Innovation, innovation)
                 count += 1
                 innovation.created = created
@@ -649,44 +944,59 @@ class Command(BaseCommand):
                     defaults=dict(
                         name=get_locale(f"trait_{key}"),
                         description=get_locale(f"trait_{key}_desc"),
-                        is_group=False,
                         group=group,
+                        is_group=False,
+                        category=item.get("category", ""),
                         level=item.get("level"),
-                        is_good=item.get("good"),
-                        is_physical=item.get("physical"),
-                        is_genetic=item.get("genetic"),
-                        is_health=item.get("health_trait"),
-                        is_fame=item.get("fame"),
-                        is_incapacitating=item.get("incapacitating"),
-                        is_immortal=item.get("immortal"),
-                        can_inbred=item.get("enables_inbred"),
-                        can_have_children=item.get("can_have_children"),
-                        can_inherit=item.get("can_inherit"),
-                        can_not_marry=(item.get("flag") == "can_not_marry") or None,
-                        can_be_taken=item.get("shown_in_ruler_designer"),
-                        cost=item.get("ruler_designer_cost"),
-                        inherit_chance=item.get("inherit_chance"),
-                        diplomacy=item.get("diplomacy"),
-                        martial=item.get("martial"),
-                        stewardship=item.get("stewardship"),
-                        intrigue=item.get("intrigue"),
-                        learning=item.get("learning"),
-                        prowess=item.get("prowess"),
-                        health=item.get("health"),
-                        fertility=item.get("fertility"),
-                        monthly_prestige=item.get("monthly_prestige"),
-                        monthly_prestige_mult=item.get("monthly_prestige_gain_mult"),
-                        monthly_piety=item.get("monthly_piety"),
-                        monthly_piety_mult=item.get("monthly_piety_gain_mult"),
-                        same_opinion=item.get("same_opinion"),
-                        opposite_opinion=item.get("opposite_opinion"),
-                        general_opinion=item.get("general_opinion"),
-                        attraction_opinion=item.get("attraction_opinion"),
-                        vassal_opinion=item.get("vassal_opinion"),
-                        clergy_opinion=item.get("clergy_opinion"),
-                        same_faith_opinion=item.get("same_faith_opinion"),
-                        dynasty_opinion=item.get("dynasty_opinion"),
-                        house_opinion=item.get("dynasty_house_opinion"),
+                        is_good=bool(item.get("good")),
+                        is_physical=bool(item.get("physical")),
+                        is_genetic=bool(item.get("genetic")),
+                        is_health=bool(item.get("health_trait")),
+                        is_fame=bool(item.get("fame")),
+                        is_incapacitating=bool(item.get("incapacitating")),
+                        is_immortal=bool(item.get("immortal")),
+                        has_tracks=bool(item.get("track") or item.get("tracks")),
+                        can_inbred=bool(item.get("enables_inbred")),
+                        can_have_children=bool(item.get("can_have_children")),
+                        can_inherit=bool(item.get("can_inherit")),
+                        can_not_marry=bool((item.get("flag") == "can_not_marry") or None),
+                        can_be_taken=bool(item.get("shown_in_ruler_designer")),
+                        cost=get_value(item, "ruler_designer_cost"),
+                        inherit_chance=get_value(item, "inherit_chance"),
+                        diplomacy=get_value(item, "diplomacy"),
+                        martial=get_value(item, "martial"),
+                        stewardship=get_value(item, "stewardship"),
+                        intrigue=get_value(item, "intrigue"),
+                        learning=get_value(item, "learning"),
+                        prowess=get_value(item, "prowess"),
+                        health=get_value(item, "health"),
+                        fertility=get_value(item, "fertility"),
+                        monthly_prestige=get_value(item, "monthly_prestige"),
+                        monthly_prestige_mult=get_value(item, "monthly_prestige_gain_mult"),
+                        monthly_piety=get_value(item, "monthly_piety"),
+                        monthly_piety_mult=get_value(item, "monthly_piety_gain_mult"),
+                        same_opinion=get_value(item, "same_opinion"),
+                        opposite_opinion=get_value(item, "opposite_opinion"),
+                        general_opinion=get_value(item, "general_opinion"),
+                        attraction_opinion=get_value(item, "attraction_opinion"),
+                        vassal_opinion=get_value(item, "vassal_opinion"),
+                        liege_opinion=get_value(item, "liege_opinion"),
+                        clergy_opinion=get_value(item, "clergy_opinion"),
+                        same_faith_opinion=get_value(item, "same_faith_opinion"),
+                        same_culture_opinion=get_value(item, "same_culture_opinion"),
+                        dynasty_opinion=get_value(item, "dynasty_opinion"),
+                        house_opinion=get_value(item, "dynasty_house_opinion"),
+                        minimum_age=get_value(item, "minimum_age"),
+                        maximum_age=get_value(item, "maximum_age"),
+                        ai_energy=get_value(item, "ai_energy"),
+                        ai_boldness=get_value(item, "ai_boldness"),
+                        ai_compassion=get_value(item, "ai_compassion"),
+                        ai_greed=get_value(item, "ai_greed"),
+                        ai_honor=get_value(item, "ai_honor"),
+                        ai_rationality=get_value(item, "ai_rationality"),
+                        ai_sociability=get_value(item, "ai_sociability"),
+                        ai_vengefulness=get_value(item, "ai_vengefulness"),
+                        ai_zeal=get_value(item, "ai_zeal"),
                         raw_data=item,
                         exists=True,
                     ),
@@ -710,57 +1020,6 @@ class Command(BaseCommand):
                     opposites = opposites if isinstance(opposites, list) else [opposites]
                     trait.opposites.set([get_object(Trait, key) for key in opposites])
         mark_as_done(Trait, count, start_date)
-
-        # Buildings
-        count, start_date = 0, datetime.datetime.now()
-        files = []
-        for file, subdata in all_data.items():
-            if not subdata or not file.startswith("common/buildings/"):
-                continue
-            files.append(file)
-        for file in tqdm(files, desc="Buildings"):
-            subdata = all_data[file]
-            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
-                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
-                    logger.warning(f'Duplicated building "{key}"')
-                    all_duplicates.setdefault(Building._meta.object_name, []).append(key)
-                    item = {k: v for d in item for k, v in d.items()}
-                if not isinstance(item, dict):
-                    logger.debug(f'Unexpected data for building "{key}": "{item}"')
-                    continue
-                building, created = Building.objects.import_update_or_create(
-                    id=key,
-                    defaults=dict(
-                        name=get_locale(f"building_{key}"),
-                        description=get_locale(f"building_{key}_desc"),
-                        type=item.get("type") or "",
-                        construction_time=get_value(item.get("construction_time")),
-                        cost_gold=get_value(item.get("cost_gold")),
-                        cost_prestige=get_value(item.get("cost_prestige")),
-                        levy=get_value(item.get("cost_gold")),
-                        max_garrison=get_value(item.get("max_garrison")),
-                        garrison_reinforcement_factor=get_value(item.get("garrison_reinforcement_factor")),
-                        raw_data=item,
-                        exists=True,
-                    ),
-                )
-                keep_object(Building, building)
-                count += 1
-                building.created = created
-        # Next buildings
-        for file, subdata in all_data.items():
-            if not subdata or not file.startswith("common/buildings/"):
-                continue
-            for key, item in subdata.items():
-                if not isinstance(item, dict) or not item.get("next_building"):
-                    continue
-                building = get_object(Building, key)
-                if building.wip:
-                    continue
-                building.next_building = get_object(Building, item["next_building"])
-                if building.modified:
-                    building.save()
-        mark_as_done(Building, count, start_date)
 
         # Holdings
         count, start_date = 0, datetime.datetime.now()
@@ -798,125 +1057,6 @@ class Command(BaseCommand):
                     buildings = buildings if isinstance(buildings, list) else [buildings]
                     holding.buildings.set([get_object(Building, key) for key in buildings])
         mark_as_done(Holding, count, start_date)
-
-        # Terrains
-        count, start_date = 0, datetime.datetime.now()
-        files = []
-        for file, subdata in all_data.items():
-            if not subdata or not file.startswith("common/terrain_types/"):
-                continue
-            files.append(file)
-        for file in tqdm(files, desc="Terrains"):
-            subdata = all_data[file]
-            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
-                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
-                    logger.warning(f'Duplicated terrain "{key}"')
-                    all_duplicates.setdefault(Terrain._meta.object_name, []).append(key)
-                    item = {k: v for d in item for k, v in d.items()}
-                if not isinstance(item, dict):
-                    logger.debug(f'Unexpected data for terrain "{key}": "{item}"')
-                    continue
-                terrain, created = Terrain.objects.import_update_or_create(
-                    id=key,
-                    defaults=dict(
-                        name=get_locale(key) or get_locale(f"{key}_terrain"),
-                        color=convert_color(item.get("color")),
-                        movement_speed=item.get("movement_speed"),
-                        combat_width=item.get("combat_width"),
-                        audio_parameter=item.get("audio_parameter"),
-                        supply_limit=item.get("province_modifier", {}).get("supply_limit_mult"),
-                        development_growth=item.get("province_modifier", {}).get("development_growth_factor"),
-                        attacker_hard_casualty=item.get("attacker_modifier", {}).get("hard_casualty_modifier"),
-                        attacker_retreat_losses=item.get("attacker_modifier", {}).get("retreat_losses"),
-                        defender_hard_casualty=item.get("defender_modifier", {}).get("hard_casualty_modifier"),
-                        defender_retreat_losses=item.get("defender_modifier", {}).get("retreat_losses"),
-                        defender_advantage=item.get("defender_combat_effects", {}).get("advantage"),
-                        raw_data=item,
-                        exists=True,
-                    ),
-                )
-                keep_object(Terrain, terrain)
-                count += 1
-                terrain.created = created
-        mark_as_done(Terrain, count, start_date)
-
-        # Men-at-arms
-        count, start_date = 0, datetime.datetime.now()
-        files = []
-        for file, subdata in all_data.items():
-            if not subdata or not file.startswith("common/men_at_arms_types/"):
-                continue
-            files.append(file)
-        for file in tqdm(files, desc="Men-at-arms"):
-            subdata = all_data[file]
-            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
-                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
-                    logger.warning(f'Duplicated men-at-arms "{key}"')
-                    all_duplicates.setdefault(MenAtArms._meta.object_name, []).append(key)
-                    item = {k: v for d in item for k, v in d.items()}
-                if not isinstance(item, dict):
-                    logger.debug(f'Unexpected data for men-at-arms "{key}": "{item}"')
-                    continue
-                buy_cost = get_value(item.get("buy_cost", {}).get("gold"))
-                if isinstance(buy_cost, str):
-                    buy_cost = None
-                low_maintenance_cost = get_value(item.get("low_maintenance_cost", {}).get("gold"))
-                if isinstance(low_maintenance_cost, str):
-                    low_maintenance_cost = None
-                high_maintenance_cost = get_value(item.get("high_maintenance_cost", {}).get("gold"))
-                if isinstance(high_maintenance_cost, str):
-                    high_maintenance_cost = None
-                men_at_arms, created = MenAtArms.objects.import_update_or_create(
-                    id=key,
-                    defaults=dict(
-                        name=get_locale(key) or get_locale(f"{key}_name"),
-                        description=get_locale(f"{key}_flavor"),
-                        type=item.get("type"),
-                        buy_cost=buy_cost,
-                        low_maintenance_cost=low_maintenance_cost,
-                        high_maintenance_cost=high_maintenance_cost,
-                        damage=item.get("damage"),
-                        toughness=item.get("toughness"),
-                        pursuit=item.get("pursuit"),
-                        screen=item.get("screen"),
-                        siege_tier=item.get("siege_tier"),
-                        siege_value=item.get("siege_value"),
-                        stack=item.get("stack"),
-                        raw_data=item,
-                        exists=True,
-                    ),
-                )
-                keep_object(MenAtArms, men_at_arms)
-                count += 1
-                men_at_arms.created = created
-                if men_at_arms.wip:
-                    continue
-                # Terrain modifiers
-                if modifiers := item.get("terrain_bonus"):
-                    for terrain, modifiers in modifiers.items():
-                        terrain_modifier, _ = TerrainModifier.objects.update_or_create(
-                            men_at_arms=men_at_arms,
-                            terrain=get_object(Terrain, terrain),
-                            defaults=dict(
-                                damage=modifiers.get("damage"),
-                                toughness=modifiers.get("toughness"),
-                                pursuit=modifiers.get("pursuit"),
-                                screen=modifiers.get("screen"),
-                            ),
-                        )
-                        keep_object(TerrainModifier, terrain_modifier)
-                # Counters
-                if counters := item.get("counters"):
-                    for type, factor in counters.items():
-                        counter, _ = Counter.objects.update_or_create(
-                            men_at_arms=men_at_arms,
-                            type=type,
-                            defaults=dict(
-                                factor=factor,
-                            ),
-                        )
-                        keep_object(Counter, counter)
-        mark_as_done(MenAtArms, count, start_date)
 
         # Doctrines
         doctrines_by_group = {}
@@ -1108,7 +1248,7 @@ class Command(BaseCommand):
                     if province_terrain := province_terrains.get(str(province_id)):
                         terrain, winter_severity_bias = (
                             province_terrain.get("terrain", default_terrain),
-                            get_value(province_terrain.get("winter_severity_bias")),
+                            get_value(province_terrain, "winter_severity_bias"),
                         )
                     title_prefix = get_locale(f"{key}_article")
                     title_name = get_locale(key) or get_locale(f"{key}_name")
@@ -1300,6 +1440,7 @@ class Command(BaseCommand):
                     id=key,
                     defaults=dict(
                         name=get_locale(key) or get_locale(f"{key}_name"),
+                        description=get_locale(f"{key}_desc"),
                         is_bad=item.get("is_bad", False),
                         is_prefix=item.get("is_prefix", False),
                         raw_data=item,
@@ -1459,15 +1600,15 @@ class Command(BaseCommand):
                         nickname=get_object(Nickname, item.get("give_nickname")),
                         culture=get_object(Culture, item.get("culture")),
                         religion=get_object(Religion, item.get("religion")),
-                        diplomacy=item.get("diplomacy"),
-                        martial=item.get("martial"),
-                        stewardship=item.get("stewardship"),
-                        intrigue=item.get("intrigue"),
-                        learning=item.get("learning"),
-                        prowess=item.get("prowess"),
-                        gold=item.get("add_gold"),
-                        prestige=item.get("add_prestige"),
-                        piety=item.get("add_piety"),
+                        diplomacy=get_value(item, "diplomacy"),
+                        martial=get_value(item, "martial"),
+                        stewardship=get_value(item, "stewardship"),
+                        intrigue=get_value(item, "intrigue"),
+                        learning=get_value(item, "learning"),
+                        prowess=get_value(item, "prowess"),
+                        gold=get_value(item, "add_gold"),
+                        prestige=get_value(item, "add_prestige"),
+                        piety=get_value(item, "add_piety"),
                         dna_data=dna.get(item.get("dna")) or dna.get(key),
                         raw_data=item,
                         exists=True,
@@ -1613,15 +1754,15 @@ class Command(BaseCommand):
                                 nickname=get_object(Nickname, subitem.get("give_nickname")),
                                 culture=culture or None,
                                 religion=get_object(Religion, subitem.get("religion") or subitem.get("faith")),
-                                diplomacy=subitem.get("diplomacy"),
-                                martial=subitem.get("martial"),
-                                stewardship=subitem.get("stewardship"),
-                                intrigue=subitem.get("intrigue"),
-                                learning=subitem.get("learning"),
-                                prowess=subitem.get("prowess"),
-                                gold=subitem.get("add_gold") or effect.get("add_gold"),
-                                prestige=subitem.get("add_prestige") or effect.get("add_prestige"),
-                                piety=subitem.get("add_piety") or effect.get("add_piety"),
+                                diplomacy=get_value(subitem, "diplomacy"),
+                                martial=get_value(subitem, "martial"),
+                                stewardship=get_value(subitem, "stewardship"),
+                                intrigue=get_value(subitem, "intrigue"),
+                                learning=get_value(subitem, "learning"),
+                                prowess=get_value(subitem, "prowess"),
+                                gold=get_value(subitem, "add_gold") or effect.get("add_gold"),
+                                prestige=get_value(subitem, "add_prestige") or effect.get("add_prestige"),
+                                piety=get_value(subitem, "add_piety") or effect.get("add_piety"),
                                 raw_data=subitem,
                             ),
                         )
@@ -1659,41 +1800,6 @@ class Command(BaseCommand):
                 if character.modified:
                     character.save()
         mark_as_done(CharacterHistory, count, start_date)
-
-        # Laws
-        count, start_date = 0, datetime.datetime.now()
-        files = []
-        for file, subdata in all_data.items():
-            if not subdata or not file.startswith("common/laws/"):
-                continue
-            files.append(file)
-        for file in tqdm(files, desc="Laws"):
-            subdata = all_data[file]
-            for group_key, group in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
-                if not group or not isinstance(group, dict):
-                    continue
-                for key, item in group.items():
-                    if isinstance(item, list) and all(isinstance(i, dict) for i in item):
-                        logger.warning(f'Duplicated law "{key}"')
-                        all_duplicates.setdefault(Law._meta.object_name, []).append(key)
-                        item = {k: v for d in item for k, v in d.items()}
-                    if not isinstance(item, dict):
-                        logger.debug(f'Unexpected data for law "{key}": "{item}"')
-                        continue
-                    law, created = Law.objects.import_update_or_create(
-                        id=key,
-                        defaults=dict(
-                            name=get_locale(key) or get_locale(f"{key}_name"),
-                            description=get_locale(f"{key}_effects") or get_locale(f"{key}_desc"),
-                            group=group.get("flag", group_key),
-                            raw_data=item,
-                            exists=True,
-                        ),
-                    )
-                    keep_object(Law, law)
-                    count += 1
-                    law.created = created
-        mark_as_done(Law, count, start_date)
 
         # Title history
         histories = {}
@@ -1744,7 +1850,7 @@ class Command(BaseCommand):
                                 holder=holder,
                                 is_independent=is_independent,
                                 is_destroyed=is_destroyed,
-                                development_level=subitem.get("change_development_level"),
+                                development_level=get_value(subitem, "change_development_level"),
                                 raw_data=subitem,
                             ),
                         )
@@ -1757,72 +1863,6 @@ class Command(BaseCommand):
                             )
                             history.succession_laws.set([get_object(Law, law) for law in succession_laws])
         mark_as_done(TitleHistory, count, start_date)
-
-        # Casus belli groups
-        count, start_date = 0, datetime.datetime.now()
-        files = []
-        for file, subdata in all_data.items():
-            if not subdata or not file.startswith("common/casus_belli_groups/"):
-                continue
-            files.append(file)
-        for file in tqdm(files, desc="Casus belli groups"):
-            subdata = all_data[file]
-            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
-                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
-                    logger.warning(f'Duplicated casus belli group "{key}"')
-                    all_duplicates.setdefault(Heritage._meta.object_name, []).append(key)
-                    item = {k: v for d in item for k, v in d.items()}
-                if not isinstance(item, dict):
-                    continue
-                casus_belli_group, created = CasusBelliGroup.objects.import_update_or_create(
-                    id=key,
-                    defaults=dict(
-                        name=get_locale(key) or get_locale(f"{key}_name"),
-                        description=get_locale(f"{key}_desc"),
-                        raw_data=item,
-                        exists=True,
-                    ),
-                )
-                keep_object(CasusBelliGroup, casus_belli_group)
-                count += 1
-                casus_belli_group.created = created
-        mark_as_done(CasusBelliGroup, count, start_date)
-
-        # Casus belli
-        count, start_date = 0, datetime.datetime.now()
-        files = []
-        for file, subdata in all_data.items():
-            if not subdata or not file.startswith("common/casus_belli_types/"):
-                continue
-            files.append(file)
-        for file in tqdm(files, desc="Casus belli"):
-            subdata = all_data[file]
-            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
-                if isinstance(item, list) and all(isinstance(i, dict) for i in item):
-                    logger.warning(f'Duplicated casus belli "{key}"')
-                    all_duplicates.setdefault(Heritage._meta.object_name, []).append(key)
-                    item = {k: v for d in item for k, v in d.items()}
-                if not isinstance(item, dict):
-                    continue
-                target_title_tier = item.get("target_title_tier") or ""
-                if isinstance(target_title_tier, dict):
-                    target_title_tier = target_title_tier.get("@value") or ""
-                casus_belli, created = CasusBelli.objects.import_update_or_create(
-                    id=key,
-                    defaults=dict(
-                        name=get_locale(key) or get_locale(f"{key}_name"),
-                        description=get_locale(item.get("war_name") or f"{key}_desc"),
-                        group=get_object(CasusBelliGroup, item.get("group")),
-                        target_titles=item.get("target_titles") or "",
-                        target_title_tier=target_title_tier,
-                        raw_data=item,
-                        exists=True,
-                    ),
-                )
-                keep_object(CasusBelli, casus_belli)
-                count += 1
-                casus_belli.created = created
-        mark_as_done(CasusBelli, count, start_date)
 
         # Wars
         count, start_date = 0, datetime.datetime.now()

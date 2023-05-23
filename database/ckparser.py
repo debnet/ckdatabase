@@ -46,11 +46,11 @@ regex_list = re.compile(r"\s*=\s*list\s+([\{\"\|])", re.MULTILINE)
 # Regex for color blocks (color = [rgb|hsv] { x y z })
 regex_color = re.compile(r"=\s*(?P<type>\w+)\s*{")
 # Regex to parse items with format key=value
-regex_inline = re.compile(r"([^\s\"]+\s*[!<=>]+\s*(([^@\"]\[?[^\s]+\]?)|(\"[^\"]+\")|(@\[[^\]]+\]))|(@\w+))")
+regex_inline = re.compile(r"([^\s\"]+\s*[?!<=>]+\s*(([^@\"]\[?[^\s]+\]?)|(\"[^\"]+\")|(@\[[^\]]+\]))|(@\w+))")
 # Regex to parse blocks with bracket below the key
 regex_values = re.compile(r"(=\s*\n+)|(\n+\s*=)")
 # Regex to parse lines with format key=value
-regex_line = re.compile(r"\"?(?P<key>[^\s\"]+)\"?\s*(?P<operator>[!<=>]+)\s*(list\s*)?(?P<value>.*)")
+regex_line = re.compile(r"\"?(?P<key>[^\s\"]+)\"?\s*(?P<operator>[?!<=>]+)\s*(list\s*)?(?P<value>.*)")
 # Regex to parse independent items in a list
 regex_item = re.compile(r"(\"[^\"]+\"|[\d\.]+|[^\s]+)")
 # Regex to remove empty lines
@@ -184,6 +184,11 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None, 
                         node[key] = [item]
                     elif isinstance(node, list):  # Only for on_actions...
                         node.append(item)
+                    elif operator != "=":
+                        node[key] = {
+                            "@operator": operator,
+                            "@value": item,
+                        }
                     else:
                         node[key] = item
                     # Change current node for next lines

@@ -10,7 +10,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("database", "0002_provinces_and_titles"),
     ]

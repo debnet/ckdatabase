@@ -344,6 +344,18 @@ class InnovationAdmin(BaseAdmin):
             },
         ),
         (
+            "Unlocks",
+            {
+                "fields": (
+                    "unlock_laws",
+                    "unlock_men_at_arms",
+                    "unlock_buildings",
+                    "unlock_casus_belli",
+                ),
+                "classes": (),
+            },
+        ),
+        (
             "Internal",
             {
                 "fields": (
@@ -648,7 +660,10 @@ class TraitAdmin(BaseAdmin):
                     "can_be_taken",
                     "cost",
                     "level",
+                    "minimum_age",
+                    "maximum_age",
                     "group",
+                    "category",
                     "opposites",
                 ),
                 "classes": (),
@@ -658,6 +673,7 @@ class TraitAdmin(BaseAdmin):
             "Flags",
             {
                 "fields": (
+                    "has_tracks",
                     "is_group",
                     "is_good",
                     "is_genetic",
@@ -712,10 +728,29 @@ class TraitAdmin(BaseAdmin):
                     "general_opinion",
                     "attraction_opinion",
                     "vassal_opinion",
+                    "liege_opinion",
                     "clergy_opinion",
                     "same_faith_opinion",
+                    "same_culture_opinion",
                     "dynasty_opinion",
                     "house_opinion",
+                ),
+                "classes": (),
+            },
+        ),
+        (
+            "AI Personalities",
+            {
+                "fields": (
+                    "ai_energy",
+                    "ai_boldness",
+                    "ai_compassion",
+                    "ai_greed",
+                    "ai_honor",
+                    "ai_rationality",
+                    "ai_sociability",
+                    "ai_vengefulness",
+                    "ai_zeal",
                 ),
                 "classes": (),
             },
@@ -742,6 +777,8 @@ class TraitAdmin(BaseAdmin):
     list_filter = (
         "exists",
         "wip",
+        "category",
+        "has_tracks",
         "is_group",
         "is_good",
         "is_genetic",
@@ -762,6 +799,7 @@ class TraitAdmin(BaseAdmin):
         "description",
         "group__id",
         "group__name",
+        "category",
     )
     autocomplete_fields = (
         "group",
@@ -2750,7 +2788,7 @@ class LawAdmin(BaseAdmin):
 @admin.register(Localization)
 class LocalizationAdmin(EntityAdmin):
     list_display = (
-        "key",
+        "text",
         "language",
         "wip",
     )

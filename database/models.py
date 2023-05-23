@@ -692,6 +692,26 @@ class Innovation(BaseModel):
         on_delete=models.SET_NULL,
         related_name="innovations",
     )
+    unlock_laws = models.ManyToManyField(
+        "Law",
+        blank=True,
+        related_name="innovations",
+    )
+    unlock_men_at_arms = models.ManyToManyField(
+        "MenAtArms",
+        blank=True,
+        related_name="innovations",
+    )
+    unlock_buildings = models.ManyToManyField(
+        "Building",
+        blank=True,
+        related_name="innovations",
+    )
+    unlock_casus_belli = models.ManyToManyField(
+        "CasusBelli",
+        blank=True,
+        related_name="innovations",
+    )
 
 
 class CultureOrHeritageHistory(Entity):
@@ -858,6 +878,7 @@ class DoctrineTrait(Entity):
 
 
 class Trait(BaseModel):
+    category = models.CharField(max_length=32, blank=True)
     group = models.ForeignKey(
         "self",
         blank=True,
@@ -873,6 +894,7 @@ class Trait(BaseModel):
     is_fame = models.BooleanField(blank=True, null=True)
     is_incapacitating = models.BooleanField(blank=True, null=True)
     is_immortal = models.BooleanField(blank=True, null=True)
+    has_tracks = models.BooleanField(blank=True, null=True)
     can_inbred = models.BooleanField(blank=True, null=True)
     can_have_children = models.BooleanField(blank=True, null=True)
     can_inherit = models.BooleanField(blank=True, null=True)
@@ -897,11 +919,24 @@ class Trait(BaseModel):
     general_opinion = models.SmallIntegerField(blank=True, null=True)
     attraction_opinion = models.SmallIntegerField(blank=True, null=True)
     vassal_opinion = models.SmallIntegerField(blank=True, null=True)
+    liege_opinion = models.SmallIntegerField(blank=True, null=True)
     clergy_opinion = models.SmallIntegerField(blank=True, null=True)
     same_faith_opinion = models.SmallIntegerField(blank=True, null=True)
+    same_culture_opinion = models.SmallIntegerField(blank=True, null=True)
     dynasty_opinion = models.SmallIntegerField(blank=True, null=True)
     house_opinion = models.SmallIntegerField(blank=True, null=True)
     level = models.PositiveSmallIntegerField(blank=True, null=True)
+    minimum_age = models.IntegerField(blank=True, null=True)
+    maximum_age = models.IntegerField(blank=True, null=True)
+    ai_energy = models.IntegerField(blank=True, null=True)
+    ai_boldness = models.IntegerField(blank=True, null=True)
+    ai_compassion = models.IntegerField(blank=True, null=True)
+    ai_greed = models.IntegerField(blank=True, null=True)
+    ai_honor = models.IntegerField(blank=True, null=True)
+    ai_rationality = models.IntegerField(blank=True, null=True)
+    ai_sociability = models.IntegerField(blank=True, null=True)
+    ai_vengefulness = models.IntegerField(blank=True, null=True)
+    ai_zeal = models.IntegerField(blank=True, null=True)
     opposites = models.ManyToManyField(
         "self",
         blank=True,
@@ -1246,7 +1281,7 @@ class Counter(Entity):
 
 
 class Localization(Entity):
-    key = models.CharField(max_length=128)
+    key = models.CharField(max_length=128, primary_key=True)
     language = models.CharField(
         max_length=2,
         default="en",
