@@ -877,7 +877,49 @@ class DoctrineTrait(Entity):
         unique_together = ("doctrine", "trait")
 
 
-class Trait(BaseModel):
+class BaseTrait(CommonModel):
+    diplomacy = models.SmallIntegerField(blank=True, null=True)
+    martial = models.SmallIntegerField(blank=True, null=True)
+    stewardship = models.SmallIntegerField(blank=True, null=True)
+    intrigue = models.SmallIntegerField(blank=True, null=True)
+    learning = models.SmallIntegerField(blank=True, null=True)
+    prowess = models.SmallIntegerField(blank=True, null=True)
+    health = models.FloatField(blank=True, null=True)
+    fertility = models.FloatField(blank=True, null=True)
+    monthly_prestige = models.FloatField(blank=True, null=True)
+    monthly_prestige_mult = models.FloatField(blank=True, null=True)
+    monthly_piety = models.FloatField(blank=True, null=True)
+    monthly_piety_mult = models.FloatField(blank=True, null=True)
+    dread_gain_mult = models.FloatField(blank=True, null=True)
+    dread_loss_mult = models.FloatField(blank=True, null=True)
+    stress_gain_mult = models.FloatField(blank=True, null=True)
+    stress_loss_mult = models.FloatField(blank=True, null=True)
+    same_opinion = models.SmallIntegerField(blank=True, null=True)
+    opposite_opinion = models.SmallIntegerField(blank=True, null=True)
+    general_opinion = models.SmallIntegerField(blank=True, null=True)
+    attraction_opinion = models.SmallIntegerField(blank=True, null=True)
+    vassal_opinion = models.SmallIntegerField(blank=True, null=True)
+    liege_opinion = models.SmallIntegerField(blank=True, null=True)
+    clergy_opinion = models.SmallIntegerField(blank=True, null=True)
+    same_faith_opinion = models.SmallIntegerField(blank=True, null=True)
+    same_culture_opinion = models.SmallIntegerField(blank=True, null=True)
+    dynasty_opinion = models.SmallIntegerField(blank=True, null=True)
+    house_opinion = models.SmallIntegerField(blank=True, null=True)
+    ai_energy = models.IntegerField(blank=True, null=True)
+    ai_boldness = models.IntegerField(blank=True, null=True)
+    ai_compassion = models.IntegerField(blank=True, null=True)
+    ai_greed = models.IntegerField(blank=True, null=True)
+    ai_honor = models.IntegerField(blank=True, null=True)
+    ai_rationality = models.IntegerField(blank=True, null=True)
+    ai_sociability = models.IntegerField(blank=True, null=True)
+    ai_vengefulness = models.IntegerField(blank=True, null=True)
+    ai_zeal = models.IntegerField(blank=True, null=True)
+
+    class Meta:
+        abstract = True
+
+
+class Trait(BaseModel, BaseTrait):
     category = models.CharField(max_length=32, blank=True)
     group = models.ForeignKey(
         "self",
@@ -901,46 +943,54 @@ class Trait(BaseModel):
     can_not_marry = models.BooleanField(blank=True, null=True)
     can_be_taken = models.BooleanField(blank=True, null=True)
     cost = models.SmallIntegerField(blank=True, null=True)
-    inherit_chance = models.SmallIntegerField(blank=True, null=True)
-    diplomacy = models.SmallIntegerField(blank=True, null=True)
-    martial = models.SmallIntegerField(blank=True, null=True)
-    stewardship = models.SmallIntegerField(blank=True, null=True)
-    intrigue = models.SmallIntegerField(blank=True, null=True)
-    learning = models.SmallIntegerField(blank=True, null=True)
-    prowess = models.SmallIntegerField(blank=True, null=True)
-    health = models.FloatField(blank=True, null=True)
-    fertility = models.FloatField(blank=True, null=True)
-    monthly_prestige = models.FloatField(blank=True, null=True)
-    monthly_prestige_mult = models.FloatField(blank=True, null=True)
-    monthly_piety = models.FloatField(blank=True, null=True)
-    monthly_piety_mult = models.FloatField(blank=True, null=True)
-    same_opinion = models.SmallIntegerField(blank=True, null=True)
-    opposite_opinion = models.SmallIntegerField(blank=True, null=True)
-    general_opinion = models.SmallIntegerField(blank=True, null=True)
-    attraction_opinion = models.SmallIntegerField(blank=True, null=True)
-    vassal_opinion = models.SmallIntegerField(blank=True, null=True)
-    liege_opinion = models.SmallIntegerField(blank=True, null=True)
-    clergy_opinion = models.SmallIntegerField(blank=True, null=True)
-    same_faith_opinion = models.SmallIntegerField(blank=True, null=True)
-    same_culture_opinion = models.SmallIntegerField(blank=True, null=True)
-    dynasty_opinion = models.SmallIntegerField(blank=True, null=True)
-    house_opinion = models.SmallIntegerField(blank=True, null=True)
+    birth_chance = models.FloatField(blank=True, null=True)
+    random_chance = models.FloatField(blank=True, null=True)
     level = models.PositiveSmallIntegerField(blank=True, null=True)
     minimum_age = models.IntegerField(blank=True, null=True)
     maximum_age = models.IntegerField(blank=True, null=True)
-    ai_energy = models.IntegerField(blank=True, null=True)
-    ai_boldness = models.IntegerField(blank=True, null=True)
-    ai_compassion = models.IntegerField(blank=True, null=True)
-    ai_greed = models.IntegerField(blank=True, null=True)
-    ai_honor = models.IntegerField(blank=True, null=True)
-    ai_rationality = models.IntegerField(blank=True, null=True)
-    ai_sociability = models.IntegerField(blank=True, null=True)
-    ai_vengefulness = models.IntegerField(blank=True, null=True)
-    ai_zeal = models.IntegerField(blank=True, null=True)
     opposites = models.ManyToManyField(
         "self",
         blank=True,
     )
+
+
+class TraitCompatibility(Entity):
+    first = models.ForeignKey(
+        "Trait",
+        on_delete=models.CASCADE,
+        related_name="compatibilities",
+    )
+    trait = models.ForeignKey(
+        "Trait",
+        on_delete=models.CASCADE,
+        related_name="+",
+    )
+    score = models.SmallIntegerField(blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.first} - {self.trait} ({self.score})"
+
+    class Meta:
+        verbose_name_plural = "trait compatibilities"
+
+
+class TraitTrack(Entity, BaseTrait):
+    trait = models.ForeignKey(
+        "Trait",
+        on_delete=models.CASCADE,
+        related_name="tracks",
+    )
+    code = models.CharField(max_length=16, blank=True)
+    level = models.PositiveSmallIntegerField()
+    raw_data = JsonField(blank=True, null=True)
+
+    def __str__(self):
+        if self.code:
+            return f"{self.trait} ({self.code}: {self.level})"
+        return f"{self.trait} ({self.level})"
+
+    class Meta:
+        unique_together = ("trait", "code", "level")
 
 
 class Law(BaseModel):
@@ -1411,6 +1461,8 @@ MODELS = (
     Doctrine,
     DoctrineTrait,
     Trait,
+    TraitCompatibility,
+    TraitTrack,
     Law,
     Title,
     TitleHistory,

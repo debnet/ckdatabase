@@ -46,6 +46,8 @@ from database.models import (
     TitleHistory,
     Tradition,
     Trait,
+    TraitCompatibility,
+    TraitTrack,
     User,
     War,
 )
@@ -386,6 +388,13 @@ class InnovationAdmin(BaseAdmin):
         "description",
         "group",
     )
+    autocomplete_fields = (
+        "era",
+        "unlock_laws",
+        "unlock_men_at_arms",
+        "unlock_buildings",
+        "unlock_casus_belli",
+    )
 
     @admin.display(description="era", ordering="era__name")
     def era_link(self, obj):
@@ -647,6 +656,232 @@ class CultureHistoryAdmin(BaseAdmin):
         return super().get_queryset(request).select_related("culture", "join_era")
 
 
+class TraitCompatibilityInlineAdmin(EntityTabularInline):
+    model = TraitCompatibility
+    fk_name = "first"
+    extra = 0
+    show_change_link = True
+    ordering = (
+        "first",
+        "trait",
+    )
+    autocomplete_fields = ("first", "trait")
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("first", "trait")
+
+
+@admin.register(TraitTrack)
+class TraitTrackAdmin(EntityAdmin):
+    fieldsets = (
+        (
+            "General",
+            {
+                "fields": (
+                    "trait",
+                    "code",
+                    "level",
+                ),
+                "classes": (),
+            },
+        ),
+        (
+            "Statistics",
+            {
+                "fields": (
+                    "diplomacy",
+                    "martial",
+                    "stewardship",
+                    "intrigue",
+                    "learning",
+                    "prowess",
+                    "health",
+                    "fertility",
+                ),
+                "classes": (),
+            },
+        ),
+        (
+            "Prestige, piety, dread and stress",
+            {
+                "fields": (
+                    "monthly_prestige",
+                    "monthly_prestige_mult",
+                    "monthly_piety",
+                    "monthly_piety_mult",
+                    "dread_gain_mult",
+                    "dread_loss_mult",
+                    "stress_gain_mult",
+                    "stress_loss_mult",
+                ),
+                "classes": (),
+            },
+        ),
+        (
+            "Opinion",
+            {
+                "fields": (
+                    "same_opinion",
+                    "opposite_opinion",
+                    "general_opinion",
+                    "attraction_opinion",
+                    "vassal_opinion",
+                    "liege_opinion",
+                    "clergy_opinion",
+                    "same_faith_opinion",
+                    "same_culture_opinion",
+                    "dynasty_opinion",
+                    "house_opinion",
+                ),
+                "classes": (),
+            },
+        ),
+        (
+            "AI Personalities",
+            {
+                "fields": (
+                    "ai_energy",
+                    "ai_boldness",
+                    "ai_compassion",
+                    "ai_greed",
+                    "ai_honor",
+                    "ai_rationality",
+                    "ai_sociability",
+                    "ai_vengefulness",
+                    "ai_zeal",
+                ),
+                "classes": (),
+            },
+        ),
+        (
+            "Internal",
+            {
+                "fields": ("raw_data",),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+    list_display = (
+        "trait_link",
+        "code",
+        "level",
+    )
+    list_filter = ()
+    search_fields = ()
+    autocomplete_fields = ("trait",)
+    ordering = (
+        "trait",
+        "code",
+        "level",
+    )
+
+    @admin.display(description="trait", ordering="trait__name")
+    def trait_link(self, obj):
+        if obj.trait:
+            url = reverse("admin:database_trait_change", args=(obj.trait.pk,))
+            return mark_safe(f'<a href="{url}">{obj.trait}</a>')
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("trait")
+
+
+class TraitTrackInlineAdmin(EntityStackedInline):
+    model = TraitTrack
+    extra = 0
+    show_change_link = True
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    "trait",
+                    "code",
+                    "level",
+                ),
+                "classes": (),
+            },
+        ),
+        (
+            "Statistics",
+            {
+                "fields": (
+                    "diplomacy",
+                    "martial",
+                    "stewardship",
+                    "intrigue",
+                    "learning",
+                    "prowess",
+                    "health",
+                    "fertility",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Prestige, piety, dread and stress",
+            {
+                "fields": (
+                    "monthly_prestige",
+                    "monthly_prestige_mult",
+                    "monthly_piety",
+                    "monthly_piety_mult",
+                    "dread_gain_mult",
+                    "dread_loss_mult",
+                    "stress_gain_mult",
+                    "stress_loss_mult",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Opinion",
+            {
+                "fields": (
+                    "same_opinion",
+                    "opposite_opinion",
+                    "general_opinion",
+                    "attraction_opinion",
+                    "vassal_opinion",
+                    "liege_opinion",
+                    "clergy_opinion",
+                    "same_faith_opinion",
+                    "same_culture_opinion",
+                    "dynasty_opinion",
+                    "house_opinion",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "AI Personalities",
+            {
+                "fields": (
+                    "ai_energy",
+                    "ai_boldness",
+                    "ai_compassion",
+                    "ai_greed",
+                    "ai_honor",
+                    "ai_rationality",
+                    "ai_sociability",
+                    "ai_vengefulness",
+                    "ai_zeal",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+    ordering = (
+        "trait",
+        "code",
+        "level",
+    )
+    autocomplete_fields = ("trait",)
+    exclude = ("raw_data",)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("trait")
+
+
 @admin.register(Trait)
 class TraitAdmin(BaseAdmin):
     fieldsets = (
@@ -686,7 +921,8 @@ class TraitAdmin(BaseAdmin):
                     "can_have_children",
                     "can_inherit",
                     "can_not_marry",
-                    "inherit_chance",
+                    "birth_chance",
+                    "random_chance",
                 ),
                 "classes": (),
             },
@@ -708,13 +944,17 @@ class TraitAdmin(BaseAdmin):
             },
         ),
         (
-            "Prestige and piety",
+            "Prestige, piety, dread and stress",
             {
                 "fields": (
                     "monthly_prestige",
                     "monthly_prestige_mult",
                     "monthly_piety",
                     "monthly_piety_mult",
+                    "dread_gain_mult",
+                    "dread_loss_mult",
+                    "stress_gain_mult",
+                    "stress_loss_mult",
                 ),
                 "classes": (),
             },
@@ -805,6 +1045,7 @@ class TraitAdmin(BaseAdmin):
         "group",
         "opposites",
     )
+    inlines = [TraitCompatibilityInlineAdmin, TraitTrackInlineAdmin]
 
     @admin.display(description="group", ordering="group__name")
     def group_link(self, obj):

@@ -10,7 +10,15 @@ from functools import partial
 from django.core.management import BaseCommand
 from tqdm.auto import tqdm
 
-from database.ckparser import convert_color, convert_date, parse_all_files, parse_all_locales, parse_file, variables
+from database.ckparser import (
+    convert_color,
+    convert_date,
+    parse_all_files,
+    parse_all_locales,
+    parse_file,
+    variables,
+    walk,
+)
 from database.models import (
     Building,
     CasusBelli,
@@ -51,6 +59,8 @@ from database.models import (
     TitleHistory,
     Tradition,
     Trait,
+    TraitCompatibility,
+    TraitTrack,
     War,
     to_pdx_date,
 )
@@ -172,6 +182,9 @@ class Command(BaseCommand):
 
         def get_value(item, key):
             value = item.get(key)
+            if isinstance(value, list):
+                logger.warning(f'Unexpected multiple items for "{key}"')
+                value = value[-1]
             if isinstance(value, dict) and "@type" in value:
                 return value.get("@result") or None
             return value
@@ -939,30 +952,43 @@ class Command(BaseCommand):
                             ),
                         )
                         keep_object(Trait, group)
+                if not (name := get_locale(f"trait_{key}")):
+                    for val, keys in walk(item.get("name", {})):
+                        if keys and keys[0] == "desc":
+                            name = get_locale(val)
+                            break
+                if not (desc := get_locale(f"trait_{key}_desc")):
+                    for val, keys in walk(item.get("desc", {})):
+                        if keys and keys[0] == "desc":
+                            desc = get_locale(val)
+                            break
                 trait, created = Trait.objects.import_update_or_create(
                     id=key,
                     defaults=dict(
-                        name=get_locale(f"trait_{key}"),
-                        description=get_locale(f"trait_{key}_desc"),
+                        name=name,
+                        description=desc,
                         group=group,
                         is_group=False,
                         category=item.get("category", ""),
                         level=item.get("level"),
+                        minimum_age=get_value(item, "minimum_age"),
+                        maximum_age=get_value(item, "maximum_age"),
                         is_good=bool(item.get("good")),
-                        is_physical=bool(item.get("physical")),
-                        is_genetic=bool(item.get("genetic")),
-                        is_health=bool(item.get("health_trait")),
-                        is_fame=bool(item.get("fame")),
-                        is_incapacitating=bool(item.get("incapacitating")),
-                        is_immortal=bool(item.get("immortal")),
+                        is_physical=bool(item.get("physical") == "yes"),
+                        is_genetic=bool(item.get("genetic") == "yes"),
+                        is_health=bool(item.get("health_trait") == "yes"),
+                        is_fame=bool(item.get("fame") == "yes"),
+                        is_incapacitating=bool(item.get("incapacitating") == "yes"),
+                        is_immortal=bool(item.get("immortal") == "yes"),
                         has_tracks=bool(item.get("track") or item.get("tracks")),
-                        can_inbred=bool(item.get("enables_inbred")),
-                        can_have_children=bool(item.get("can_have_children")),
-                        can_inherit=bool(item.get("can_inherit")),
+                        can_inbred=bool(item.get("enables_inbred") == "yes"),
+                        can_have_children=bool(item.get("can_have_children") == "yes"),
+                        can_inherit=bool(item.get("inheritance_blocker")),
                         can_not_marry=bool((item.get("flag") == "can_not_marry") or None),
-                        can_be_taken=bool(item.get("shown_in_ruler_designer")),
+                        can_be_taken=bool(item.get("shown_in_ruler_designer") == "yes"),
                         cost=get_value(item, "ruler_designer_cost"),
-                        inherit_chance=get_value(item, "inherit_chance"),
+                        birth_chance=get_value(item, "birth"),
+                        random_chance=get_value(item, "random_creation"),
                         diplomacy=get_value(item, "diplomacy"),
                         martial=get_value(item, "martial"),
                         stewardship=get_value(item, "stewardship"),
@@ -975,6 +1001,10 @@ class Command(BaseCommand):
                         monthly_prestige_mult=get_value(item, "monthly_prestige_gain_mult"),
                         monthly_piety=get_value(item, "monthly_piety"),
                         monthly_piety_mult=get_value(item, "monthly_piety_gain_mult"),
+                        dread_gain_mult=get_value(item, "dread_gain_mult"),
+                        dread_loss_mult=get_value(item, "dread_loss_mult"),
+                        stress_gain_mult=get_value(item, "stress_gain_mult"),
+                        stress_loss_mult=get_value(item, "stress_loss_mult"),
                         same_opinion=get_value(item, "same_opinion"),
                         opposite_opinion=get_value(item, "opposite_opinion"),
                         general_opinion=get_value(item, "general_opinion"),
@@ -986,8 +1016,6 @@ class Command(BaseCommand):
                         same_culture_opinion=get_value(item, "same_culture_opinion"),
                         dynasty_opinion=get_value(item, "dynasty_opinion"),
                         house_opinion=get_value(item, "dynasty_house_opinion"),
-                        minimum_age=get_value(item, "minimum_age"),
-                        maximum_age=get_value(item, "maximum_age"),
                         ai_energy=get_value(item, "ai_energy"),
                         ai_boldness=get_value(item, "ai_boldness"),
                         ai_compassion=get_value(item, "ai_compassion"),
@@ -1004,7 +1032,55 @@ class Command(BaseCommand):
                 keep_object(Trait, trait)
                 count += 1
                 trait.created = created
-        # Opposite traits
+                if item.get("track") or item.get("tracks"):
+                    for code, track in (item.get("tracks") or {"": item.get("track")}).items():
+                        for level, subitem in track.items():
+                            trait_track, created = TraitTrack.objects.update_or_create(
+                                trait=get_object(Trait, key),
+                                code=code,
+                                level=variables.get(level, level),
+                                defaults=dict(
+                                    diplomacy=get_value(subitem, "diplomacy"),
+                                    martial=get_value(subitem, "martial"),
+                                    stewardship=get_value(subitem, "stewardship"),
+                                    intrigue=get_value(subitem, "intrigue"),
+                                    learning=get_value(subitem, "learning"),
+                                    prowess=get_value(subitem, "prowess"),
+                                    health=get_value(subitem, "health"),
+                                    fertility=get_value(subitem, "fertility"),
+                                    monthly_prestige=get_value(subitem, "monthly_prestige"),
+                                    monthly_prestige_mult=get_value(subitem, "monthly_prestige_gain_mult"),
+                                    monthly_piety=get_value(subitem, "monthly_piety"),
+                                    monthly_piety_mult=get_value(subitem, "monthly_piety_gain_mult"),
+                                    dread_gain_mult=get_value(subitem, "dread_gain_mult"),
+                                    dread_loss_mult=get_value(subitem, "dread_loss_mult"),
+                                    stress_gain_mult=get_value(subitem, "stress_gain_mult"),
+                                    stress_loss_mult=get_value(subitem, "stress_loss_mult"),
+                                    same_opinion=get_value(subitem, "same_opinion"),
+                                    opposite_opinion=get_value(subitem, "opposite_opinion"),
+                                    general_opinion=get_value(subitem, "general_opinion"),
+                                    attraction_opinion=get_value(subitem, "attraction_opinion"),
+                                    vassal_opinion=get_value(subitem, "vassal_opinion"),
+                                    liege_opinion=get_value(subitem, "liege_opinion"),
+                                    clergy_opinion=get_value(subitem, "clergy_opinion"),
+                                    same_faith_opinion=get_value(subitem, "same_faith_opinion"),
+                                    same_culture_opinion=get_value(subitem, "same_culture_opinion"),
+                                    dynasty_opinion=get_value(subitem, "dynasty_opinion"),
+                                    house_opinion=get_value(subitem, "dynasty_house_opinion"),
+                                    ai_energy=get_value(subitem, "ai_energy"),
+                                    ai_boldness=get_value(subitem, "ai_boldness"),
+                                    ai_compassion=get_value(subitem, "ai_compassion"),
+                                    ai_greed=get_value(subitem, "ai_greed"),
+                                    ai_honor=get_value(subitem, "ai_honor"),
+                                    ai_rationality=get_value(subitem, "ai_rationality"),
+                                    ai_sociability=get_value(subitem, "ai_sociability"),
+                                    ai_vengefulness=get_value(subitem, "ai_vengefulness"),
+                                    ai_zeal=get_value(subitem, "ai_zeal"),
+                                    raw_data=subitem,
+                                ),
+                            )
+                            keep_object(TraitTrack, trait_track)
+                            trait_track.created = created
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("common/traits/"):
                 continue
@@ -1013,12 +1089,25 @@ class Command(BaseCommand):
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
                     continue
+                # Trait opposites
                 if opposites := item.get("opposites"):
                     trait = get_object(Trait, key)
                     if trait.wip:
                         continue
                     opposites = opposites if isinstance(opposites, list) else [opposites]
                     trait.opposites.set([get_object(Trait, key) for key in opposites])
+                # Trait compatibilities
+                if compatibilities := item.get("compatibility"):
+                    for trait, score in compatibilities.items():
+                        score = score[-1] if isinstance(score, list) else score
+                        score = score.get("@result") if isinstance(score, dict) else score
+                        compatibility, created = TraitCompatibility.objects.update_or_create(
+                            first=get_object(Trait, key),
+                            trait=get_object(Trait, trait),
+                            defaults=dict(score=score),
+                        )
+                        keep_object(TraitCompatibility, compatibility)
+                        compatibility.created = created
         mark_as_done(Trait, count, start_date)
 
         # Holdings

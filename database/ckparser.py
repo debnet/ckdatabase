@@ -208,29 +208,37 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None, 
                     if node[key] != value:  # Avoid single duplicates
                         if not isinstance(node[key], list):
                             node[key] = [node[key]]
-                        node[key].append(value)
+                        if isinstance(value, str) and (value.startswith("@") or value in (variables | local_variables)):
+                            if (result := (variables | local_variables).get(value)) is None:
+                                if filename:
+                                    logger.warning(f"Filename: {filename}")
+                                logger.warning(f'Value for "{value}" cannot be found (line: {line_number})')
+                            node[key].append({"@type": "variable", "@value": value, "@result": result})
+                        else:
+                            node[key].append(value)
                 # If this key must be forced as list
                 elif key.lower() in forced_list_keys:
                     node[key] = [value]
                 else:
                     # If operator is not equal
                     if operator != "=":
-                        node[key] = {
-                            "@operator": operator,
-                            "@value": value,
-                        }
+                        node[key] = {"@operator": operator, "@value": value}
                         if isinstance(value, str):
                             if value == "":
                                 node[key]["@value"] = item = {}
                                 nodes.append(("@", item))
                             elif value.startswith("@[") and value.endswith("]"):
                                 formula = value.lstrip("@[").rstrip("]")
-                                for var_name, var_value in variables.items():
+                                for var_name, var_value in (variables | local_variables).items():
                                     formula = re.sub(rf"\b{var_name}\b", str(var_value), formula)
                                 try:
                                     result = eval(formula, None, variables)
-                                except Exception as e:
-                                    logger.warning(f"Formula [{formula}] can't be evaluated: {e}")
+                                except Exception as exception:
+                                    if filename:
+                                        logger.warning(f"Filename: {filename}")
+                                    logger.warning(
+                                        f"Formula [{formula}] (line: {line_number}) can't be evaluated: {exception}"
+                                    )
                                     result = None
                                 if isinstance(result, float):
                                     result = round(result, 5)
@@ -239,12 +247,12 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None, 
                                     "@value": value,
                                     "@result": result,
                                 }
-                            elif value.startswith("@") or value in variables:
-                                node[key]["@value"] = {
-                                    "@type": "variable",
-                                    "@value": value,
-                                    "@result": variables.get(value.lstrip("@")),
-                                }
+                            elif value.startswith("@") or value in (variables | local_variables):
+                                if (result := (variables | local_variables).get(value)) is None:
+                                    if filename:
+                                        logger.warning(f"Filename: {filename}")
+                                    logger.warning(f'Value for "{value}" cannot be found (line: {line_number})')
+                                node[key]["@value"] = {"@type": "variable", "@value": value, "@result": result}
                     # If value is a formula
                     elif isinstance(value, str):
                         if value.startswith("@[") and value.endswith("]"):
@@ -253,39 +261,37 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None, 
                                 formula = re.sub(rf"\b{var_name}\b", str(var_value), formula)
                             try:
                                 result = eval(formula, None, variables | local_variables)
-                            except Exception as e:
-                                logger.warning(f"Formula [{formula}] can't be evaluated: {e}")
+                            except Exception as exception:
+                                if filename:
+                                    logger.warning(f"Filename: {filename}")
+                                logger.warning(
+                                    f"Formula [{formula}] (line: {line_number}) can't be evaluated: {exception}"
+                                )
                                 result = None
                             if isinstance(result, float):
                                 result = round(result, 5)
-                            node[key] = {
-                                "@type": "formula",
-                                "@value": value,
-                                "@result": result,
-                            }
+                            node[key] = {"@type": "formula", "@value": value, "@result": result}
                             if result is not None and (key.startswith("@") or len(nodes) == 1):
-                                variable_name = key.lstrip("@")
-                                local_variables[variable_name] = result
+                                local_variables[key] = local_variables[key.lstrip("@")] = result
                                 if is_global:
-                                    variables[variable_name] = result
+                                    variables[key] = variables[key.lstrip("@")] = result
                         elif value.startswith("@"):
-                            node[key] = {
-                                "@type": "variable",
-                                "@value": value,
-                                "@result": variables.get(value.lstrip("@")),
-                            }
-                        elif result := (local_variables.get(value) or variables.get(value)):
+                            if (result := (variables | local_variables).get(value)) is None:
+                                if filename:
+                                    logger.warning(f"Filename: {filename}")
+                                logger.warning(f'Value for "{value}" cannot be found (line: {line_number})')
+                            node[key] = {"@type": "variable", "@value": value, "@result": result}
+                            if result is not None and (key.startswith("@") or len(nodes) == 1):
+                                local_variables[key] = local_variables[key.lstrip("@")] = result
+                                if is_global:
+                                    variables[key] = variables[key.lstrip("@")] = result
+                        elif result := (variables | local_variables).get(value):
                             if not isinstance(result, str):
-                                node[key] = {
-                                    "@type": "variable",
-                                    "@value": value,
-                                    "@result": result,
-                                }
+                                node[key] = {"@type": "variable", "@value": value, "@result": result}
                                 if result is not None and (key.startswith("@") or len(nodes) == 1):
-                                    variable_name = key.lstrip("@")
-                                    local_variables[variable_name] = result
+                                    local_variables[key] = local_variables[key.lstrip("@")] = result
                                     if is_global:
-                                        variables[variable_name] = result
+                                        variables[key] = variables[key.lstrip("@")] = result
                         elif key.startswith("&") and isinstance(node, list):
                             if subindexes := regex_inner_string.findall(value):
                                 for subindex in map(int, subindexes):
@@ -295,17 +301,15 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None, 
                         else:
                             node[key] = value
                             if value is not None and (key.startswith("@") or len(nodes) == 1):
-                                variable_name = key.lstrip("@")
-                                local_variables[variable_name] = value
+                                local_variables[key] = local_variables[key.lstrip("@")] = value
                                 if is_global:
-                                    variables[variable_name] = value
+                                    variables[key] = variables[key.lstrip("@")] = value
                     else:
                         node[key] = value
                         if value is not None and (key.startswith("@") or len(nodes) == 1):
-                            variable_name = key.lstrip("@")
-                            local_variables[variable_name] = value
+                            local_variables[key] = local_variables[key.lstrip("@")] = value
                             if is_global:
-                                variables[variable_name] = value
+                                variables[key] = variables[key.lstrip("@")] = value
             # If line is opening bracket inside an operator
             elif line_text == "{" and node_name == "@":
                 continue
@@ -330,11 +334,12 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None, 
                             elif node_name in ("on_actions", "events"):  # Only for on_actions/events...
                                 prev[node_name] = node = []
                             else:
-                                logger.warning(
-                                    f"Single value cannot be added to a dictionary (line {line_number}: {line_text})"
-                                )
                                 if filename:
                                     logger.warning(f"Filename: {filename}")
+                                logger.warning(
+                                    f"Single value cannot be added to a dictionary "
+                                    f"(line {line_number}: {line_text})"
+                                )
                                 continue
                         else:
                             prev[node_name] = node = []
@@ -350,14 +355,28 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None, 
                 else:
                     # Find every couple of key=value
                     for item in regex_item.findall(line_text):
-                        if item.startswith("@"):
-                            node.append(
-                                {
-                                    "@type": "variable",
-                                    "@value": item,
-                                    "@result": variables.get(item.lstrip("@")),
-                                }
-                            )
+                        if item.startswith("@[") and item.endswith("]"):
+                            formula = item.lstrip("@[").rstrip("]")
+                            for var_name, var_value in (variables | local_variables).items():
+                                formula = re.sub(rf"\b{var_name}\b", str(var_value), formula)
+                            try:
+                                result = eval(formula, None, variables | local_variables)
+                            except Exception as exception:
+                                if filename:
+                                    logger.warning(f"Filename: {filename}")
+                                logger.warning(
+                                    f"Formula [{formula}] (line: {line_number}) can't be evaluated: {exception}"
+                                )
+                                result = None
+                            if isinstance(result, float):
+                                result = round(result, 5)
+                            node.append({"@type": "formula", "@value": value, "@result": result})
+                        elif item.startswith("@"):
+                            if (result := (variables | local_variables).get(item)) is None:
+                                if filename:
+                                    logger.warning(f"Filename: {filename}")
+                                logger.warning(f'Value for "{value}" cannot be found (line: {line_number})')
+                            node.append({"@type": "variable", "@value": item, "@result": result})
                         else:
                             try:
                                 node.append(ast.literal_eval(item))
@@ -365,15 +384,23 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None, 
                                 node.append(item)
         except Exception as error:
             if filename:
-                logger.warning(f"Filename: {filename}")
-            logger.warning(f"Line {line_number}: {line_text}")
+                logger.error(f"Filename: {filename}")
+            logger.error(f"Line {line_number}: {line_text}")
             logger.error(f"Parse error: {error}")
             logger.debug("Exception:", exc_info=True)
             return text if return_text_on_error else None
     return root
 
 
-def parse_file(path, output_dir=None, encoding="utf_8_sig", base_dir=None, save=False, comments=False, is_global=False):
+def parse_file(
+    path,
+    output_dir=None,
+    encoding="utf_8_sig",
+    base_dir=None,
+    save=False,
+    comments=False,
+    is_global=False,
+):
     """
     Parse file
     :param path: Path to file to parse
@@ -416,7 +443,13 @@ def parse_file(path, output_dir=None, encoding="utf_8_sig", base_dir=None, save=
 
 
 def parse_all_files(
-    path, output_dir=None, encoding="utf_8_sig", keep_data=False, save=False, comments=False, variables_first=True
+    path,
+    output_dir=None,
+    encoding="utf_8_sig",
+    keep_data=False,
+    save=False,
+    comments=False,
+    variables_first=True,
 ):
     """
     Parse all text files in a directory
