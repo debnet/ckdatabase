@@ -190,10 +190,7 @@ class Command(BaseCommand):
             return value
 
         # Parsing
-        if not reset and os.path.exists("_all_data.json"):
-            with open("_all_data.json") as file:
-                all_data = json.load(file)
-        else:
+        if reset:
             start_date = datetime.datetime.now()
             all_data = parse_all_files(base_path, keep_data=True, save=save)
             if mod_path:
@@ -213,12 +210,14 @@ class Command(BaseCommand):
             }
             with open("_all_data.json", "w") as file:
                 json.dump(all_data, file, indent=4)
-            with open("_all_data.json") as file:
-                all_data = json.load(file)
             with open("_all_variables.json", "w") as file:
                 json.dump(variables, file, indent=4, sort_keys=True)
             total_time = (datetime.datetime.now() - start_date).total_seconds()
             logger.info(f"Parsing files in {total_time:0.2f}s")
+        with open("_all_data.json") as file:
+            all_data = json.load(file)
+        with open("_all_variables.json") as file:
+            all_variables = json.load(file)
 
         # Localization
         start_date = datetime.datetime.now()
@@ -1038,7 +1037,7 @@ class Command(BaseCommand):
                             trait_track, created = TraitTrack.objects.update_or_create(
                                 trait=get_object(Trait, key),
                                 code=code,
-                                level=variables.get(level, level),
+                                level=all_variables.get(level, level),
                                 defaults=dict(
                                     diplomacy=get_value(subitem, "diplomacy"),
                                     martial=get_value(subitem, "martial"),
@@ -1081,7 +1080,11 @@ class Command(BaseCommand):
                             )
                             keep_object(TraitTrack, trait_track)
                             trait_track.created = created
-        for file, subdata in all_data.items():
+        mark_as_done(Trait, count, start_date)
+
+        # Trait opposites and compatibilities
+        count, start_date = 0, datetime.datetime.now()
+        for file, subdata in tqdm(all_data.items(), desc="Trait extra"):
             if not subdata or not file.startswith("common/traits/"):
                 continue
             for key, item in subdata.items():
@@ -1108,7 +1111,8 @@ class Command(BaseCommand):
                         )
                         keep_object(TraitCompatibility, compatibility)
                         compatibility.created = created
-        mark_as_done(Trait, count, start_date)
+                        count += 1
+        mark_as_done(TraitCompatibility, count, start_date)
 
         # Holdings
         count, start_date = 0, datetime.datetime.now()
