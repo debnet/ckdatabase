@@ -185,8 +185,11 @@ class Command(BaseCommand):
             if isinstance(value, list):
                 logger.warning(f'Unexpected multiple items for "{key}"')
                 value = value[-1]
-            if isinstance(value, dict) and "@type" in value:
-                return value.get("@result") or None
+            if isinstance(value, dict):
+                if "@type" in value:
+                    return value.get("@result") or None
+                elif "@value" in value:
+                    return value.get("@value") or None
             return value
 
         # Parsing
@@ -1718,7 +1721,7 @@ class Command(BaseCommand):
         for file, subdata in all_data.items():
             if not subdata or not file.startswith("history/characters/"):
                 continue
-            for key, item in subdata.items():
+            for key, item in tqdm(subdata.items(), desc=os.path.basename(file), leave=False):
                 if isinstance(item, list) and all(isinstance(i, dict) for i in item):
                     item = {k: v for d in item for k, v in d.items()}
                 if not isinstance(item, dict):
@@ -1964,15 +1967,15 @@ class Command(BaseCommand):
             if not subdata or not file.startswith("history/wars/"):
                 continue
             files.append(file)
-        for file in tqdm(files, desc="Wars"):
+        for i, file in tqdm(enumerate(files), desc="Wars"):
             subdata = all_data[file]
             wars = subdata.get("war")
             wars = wars if isinstance(wars, list) else [wars]
-            for item in tqdm(wars, desc=os.path.basename(file), leave=False):
+            for j, item in tqdm(enumerate(wars), desc=os.path.basename(file), leave=False):
                 if not isinstance(item, dict) and not item.get("name"):
                     continue
                 war, created = War.objects.import_update_or_create(
-                    id=item.get("name"),
+                    id=item.get("name") or f"{i * 100 + j}",
                     defaults=dict(
                         name=get_locale(item.get("name")),
                         start_date=convert_date(item.get("start_date")),

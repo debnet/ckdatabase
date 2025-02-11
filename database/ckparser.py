@@ -56,7 +56,7 @@ regex_item = re.compile(r"(\"[^\"]+\"|[\d\.]+|[^\s]+)")
 # Regex to remove empty lines
 regex_empty = re.compile(r"(\n\s*\n)+", re.MULTILINE)
 # Regex to parse locale files
-regex_locale = re.compile(r"^\s*(?P<key>[^\:#]+)\:\d+\s\"(?P<value>.+)\".*$")
+regex_locale = re.compile(r"^\s*(?P<key>[^\:#]+)\:(\d+)?\s\"(?P<value>.+)\".*$")
 
 
 def convert_color(color):
@@ -143,13 +143,13 @@ def parse_text(text, return_text_on_error=False, comments=False, filename=None, 
     for index, match in enumerate(regex_string_multiline.finditer(text), start=index + 1):
         strings[index] = match.group(0).replace("\n", " ").strip()
         text = text.replace(match.group(0), f"|{index}|", 1)
-    text = regex_list.sub("|list=\g<1>", text)
-    text = regex_block.sub("\g<1>={", text)
+    text = regex_list.sub(r"|list=\g<1>", text)
+    text = regex_block.sub(r"\g<1>={", text)
     text = text.replace("{", "\n{\n").replace("}", "\n}\n")
-    text = regex_color.sub("={\n\g<1>", text)
-    text = regex_inline.sub("\g<1>\n", text)
-    text = regex_values.sub("=", text)
-    text = regex_empty.sub("\n", text)
+    text = regex_color.sub(r"={\n\g<1>", text)
+    text = regex_inline.sub(r"\g<1>\n", text)
+    text = regex_values.sub(r"=", text)
+    text = regex_empty.sub(r"\n", text)
     for keyword in keywords:
         text = text.replace(f"{keyword} ", f"{keyword}|")
     for index, string in strings.items():
@@ -400,6 +400,7 @@ def parse_file(
     save=False,
     comments=False,
     is_global=False,
+    patch=None,
 ):
     """
     Parse file
@@ -410,6 +411,7 @@ def parse_file(
     :param save: (default false) Save parsed file in output directory
     :param comments: Include comments?
     :param is_global: (default false) Are file's variables global?
+    :param patch: String replacement patterns
     :return: Parsed data as dictionary or text if parsing fails
     """
     start_time = datetime.datetime.utcnow()
@@ -422,6 +424,8 @@ def parse_file(
     text = read_file(path, encoding)
     if not text or not text.strip():
         return None
+    for pattern, replacement in patch or []:
+        text = re.sub(pattern, replacement, text)
     filename = os.path.join(base_dir, os.path.basename(path))
     logger.debug(f"Parsing {filename}")
     data = parse_text(text, return_text_on_error=True, comments=comments, filename=filename, is_global=is_global)
@@ -431,8 +435,11 @@ def parse_file(
         os.makedirs(directory, exist_ok=True)
         if not isinstance(data, dict):
             filename = os.path.join(directory, filename + ".error")
-            with open(filename, "w") as file:
-                file.write(data)
+            try:
+                with open(filename, "w") as file:
+                    file.write(data)
+            except UnicodeEncodeError as error:
+                logger.error(f"Unable to write file {filename}: {error}")
         else:
             filename = os.path.join(directory, filename + ".json")
             with open(filename, "w") as file:
@@ -506,19 +513,29 @@ def parse_all_locales(path, encoding="utf_8_sig", language="english", save=False
     :return: Locales in dictionary
     """
     locales = {}
-    for current_path, _, all_files in os.walk(path):
-        for filename in all_files:
-            if not filename.lower().endswith(".yml"):
-                continue
-            filepath = os.path.join(current_path, filename)
-            with open(filepath, encoding=encoding) as file:
-                while line := file.readline():
-                    if line.strip().lower() == f"l_{language}:":
-                        break
-                for line in file:
-                    if match := regex_locale.match(line):
-                        key, value = match.groups()
-                        locales[key] = value
+    if os.path.isfile(path):
+        with open(path, encoding=encoding) as file:
+            while line := file.readline():
+                if line.strip().lower() == f"l_{language}:":
+                    break
+            for line in file:
+                if match := regex_locale.match(line):
+                    key, _, value = match.groups()
+                    locales[key] = value
+    else:
+        for current_path, _, all_files in os.walk(path):
+            for filename in all_files:
+                if not filename.lower().endswith(".yml"):
+                    continue
+                filepath = os.path.join(current_path, filename)
+                with open(filepath, encoding=encoding) as file:
+                    while line := file.readline():
+                        if line.strip().lower() == f"l_{language}:":
+                            break
+                    for line in file:
+                        if match := regex_locale.match(line):
+                            key, _, value = match.groups()
+                            locales[key] = value
     if save:
         with open("_locales.json", "w") as file:
             json.dump(locales, file, indent=4, sort_keys=True)
@@ -535,7 +552,7 @@ def walk(obj, *from_keys):
     if isinstance(obj, dict):
         for key, value in obj.items():
             yield from walk(value, key, *from_keys)
-    elif isinstance(obj, list):
+    elif isinstance(obj, list) and any(isinstance(subitem, (list, dict)) for subitem in obj):
         for item in obj:
             yield from walk(item, *from_keys)
     else:

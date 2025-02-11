@@ -532,7 +532,7 @@ class Dynasty(BaseModel):
 
 
 class House(BaseModel):
-    prefix = models.CharField(max_length=16, blank=True)
+    prefix = models.CharField(max_length=32, blank=True)
     dynasty = models.ForeignKey(
         "Dynasty",
         blank=True,
@@ -677,7 +677,7 @@ class Era(BaseModel):
 
 class Innovation(BaseModel):
     group = models.CharField(
-        max_length=32,
+        max_length=64,
         blank=True,
         choices=(
             ("culture_group_civic", "Civic"),
@@ -775,8 +775,8 @@ class CultureHistory(CultureOrHeritageHistory):
 
 
 class Religion(BaseModel):
-    group = models.CharField(max_length=32, blank=True)
-    color = models.CharField(max_length=16, blank=True)
+    group = models.CharField(max_length=64, blank=True)
+    color = models.CharField(max_length=32, blank=True)
     religious_head = models.ForeignKey(
         "Title",
         blank=True,
@@ -848,7 +848,7 @@ class HolySite(BaseModel):
 
 
 class Doctrine(BaseModel):
-    group = models.CharField(max_length=32, blank=True)
+    group = models.CharField(max_length=64, blank=True)
     multiple = models.SmallIntegerField(blank=True, null=True)
 
 
@@ -920,7 +920,7 @@ class BaseTrait(CommonModel):
 
 
 class Trait(BaseModel, BaseTrait):
-    category = models.CharField(max_length=32, blank=True)
+    category = models.CharField(max_length=64, blank=True)
     group = models.ForeignKey(
         "self",
         blank=True,
@@ -980,7 +980,7 @@ class TraitTrack(Entity, BaseTrait):
         on_delete=models.CASCADE,
         related_name="tracks",
     )
-    code = models.CharField(max_length=16, blank=True)
+    code = models.CharField(max_length=32, blank=True)
     level = models.PositiveSmallIntegerField()
     raw_data = JsonField(blank=True, null=True)
 
@@ -995,7 +995,7 @@ class TraitTrack(Entity, BaseTrait):
 
 class Law(BaseModel):
     group = models.CharField(
-        max_length=32,
+        max_length=64,
         blank=True,
         choices=(
             ("realm_law", "Realm law"),
@@ -1019,7 +1019,7 @@ class Title(BaseModel):
             ("empire", "Empire"),
         ),
     )
-    prefix = models.CharField(max_length=16, blank=True)
+    prefix = models.CharField(max_length=32, blank=True)
     color = models.CharField(max_length=8, blank=True)
     de_jure_liege = models.ForeignKey(
         "self",
@@ -1103,7 +1103,7 @@ class TitleHistory(Entity):
 
 
 class Terrain(BaseModel):
-    color = models.CharField(max_length=16, blank=True)
+    color = models.CharField(max_length=32, blank=True)
     movement_speed = models.FloatField(blank=True, null=True)
     combat_width = models.FloatField(blank=True, null=True)
     audio_parameter = models.FloatField(blank=True, null=True)
@@ -1229,7 +1229,7 @@ class Holding(BaseModel):
 
 class Building(BaseModel):
     type = models.CharField(
-        max_length=16,
+        max_length=32,
         blank=True,
         choices=(
             ("duchy_capital", "Duchy"),
@@ -1266,7 +1266,7 @@ MEN_AT_ARMS_TYPES = (
 
 
 class MenAtArms(BaseModel):
-    type = models.CharField(max_length=16, blank=True, choices=MEN_AT_ARMS_TYPES)
+    type = models.CharField(max_length=32, blank=True, choices=MEN_AT_ARMS_TYPES)
     buy_cost = models.FloatField(blank=True, null=True)
     low_maintenance_cost = models.FloatField(blank=True, null=True)
     high_maintenance_cost = models.FloatField(blank=True, null=True)
@@ -1316,7 +1316,7 @@ class Counter(Entity):
         on_delete=models.CASCADE,
         related_name="counters",
     )
-    type = models.CharField(max_length=16, blank=True, choices=MEN_AT_ARMS_TYPES)
+    type = models.CharField(max_length=32, blank=True, choices=MEN_AT_ARMS_TYPES)
     factor = models.FloatField(default=1.0)
 
     @property
@@ -1373,7 +1373,7 @@ class CasusBelli(BaseModel):
         related_name="casus_belli",
     )
     target_titles = models.CharField(
-        max_length=32,
+        max_length=64,
         blank=True,
         choices=(
             ("all", "All titles"),
